@@ -15,25 +15,25 @@ ref<PyObject> internal_tmpfile_remove_callback;
 
 } // unnamed namespace
 
-int Util_SignalSystem(const char* cmd)
-{
-    return system(cmd);
-}
-
-int tmpFile(const char* prefix, const char* suffix, char** out_name);
-
-int Util_SignalTmpFile(const char* prefix, const char* suffix, char** out_name)
-{
-    return tmpFile(prefix, suffix, out_name);
-}
-
-void Util_SignalTmpFileRemove(const char* fname, int fLeave)
-{
-    if (! fLeave)
-    {
-        unlink(fname);
-    }
-}
+//int Util_SignalSystem(const char* cmd)
+//{
+//    return system(cmd);
+//}
+//
+//int tmpFile(const char* prefix, const char* suffix, char** out_name);
+//
+//int Util_SignalTmpFile(const char* prefix, const char* suffix, char** out_name)
+//{
+//    return tmpFile(prefix, suffix, out_name);
+//}
+//
+//void Util_SignalTmpFileRemove(const char* fname, int fLeave)
+//{
+//    if (! fLeave)
+//    {
+//        unlink(fname);
+//    }
+//}
 
 extern "C"
 int Util_SignalSystem(const char* cmd)
