@@ -1,9 +1,16 @@
 from setuptools import setup, Extension
 
+source_files = [
+    'pyabc.cpp',
+    'command.cpp',
+    'cex.cpp',
+    'sys.cpp',
+    'util.cpp',
+]
+
 ext = Extension(
     'pyabc._pyabc',
-    ['pyabc.cpp', 'command.cpp', 'cex.cpp', 'sys.cpp', 'util.cpp'],
-
+    source_files,
     include_dirs=['../abc/src', '../pywrapper/src'],
     define_macros=[('LIN64', 1)],
     extra_compile_args=['-std=c++11', '-Wno-write-strings'],
