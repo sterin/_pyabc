@@ -35,7 +35,7 @@ cex::initialize(PyObject* module)
 
     _type.tp_methods = methods;
 
-    base::initialize("_pyabcx.cex");
+    base::initialize("_pyabc.cex");
     add_to_module(module, "cex");
 }
 

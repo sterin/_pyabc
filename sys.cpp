@@ -1,119 +1,75 @@
 #include "sys.h"
+#include "util.h"
 
 #include <set>
-#include <initializer_list>
 
+#include <unistd.h>
+#include <signal.h>
 #include <pthread.h>
-#include <errno.h>
-#include <sys/prctl.h>
+#include <sys/wait.h>
 
-class block_signals
+namespace pyabc
 {
-public:
-
-    explicit block_signals(std::initializer_list<int> signals)
-    {
-        sigset_t mask;
-        sigemptyset(&mask);
-
-        for( int sig : signals )
-        {
-            sigaddset(&mask, sig);
-        }
-
-        sigprocmask(SIG_BLOCK, &mask, &_old);
-    }
-
-    ~block_signals()
-    {
-        sigprocmask(SIG_SETMASK, &_old, nullptr);
-    }
-
-private:
-
-    sigset_t _old;
-};
-
 
 namespace
 {
 
-bool sigchild_handler_installed = false;
-
-int sigchld_wakeup_fd = -1;
+std::set<int> sigchld_wakeup_fds;
 
 void sigchld_handler(int)
 {
-    int old_errno = errno;
+    save_restore_errno errno_scope;
 
-    if (sigchld_wakeup_fd > -1)
+    for( int fd : sigchld_wakeup_fds )
     {
-        while( write(sigchld_wakeup_fd, "", 1) == -1 && errno==EINTR )
-            ;
-    }
-
-    errno = old_errno;
-}
-
-void install_sigchld_handler(int fd)
-{
-    sigchld_wakeup_fd = fd;
-    sigchild_handler_installed = true;
-
-    static struct sigaction sa;
-
-    sa.sa_handler = sigchld_handler;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = SA_RESTART;
-
-    sigaction(SIGCHLD, &sa, nullptr);
-}
-
-void uninstall_sigchld_handler()
-{
-    if (sigchild_handler_installed)
-    {
-        signal(SIGCHLD, SIG_DFL);
-
-        sigchld_wakeup_fd = -1;
-        sigchild_handler_installed = false;
+        retry_eintr(write, fd, ".", 1);
     }
 }
 
-void block_sigchild()
+std::set<std::string> temporary_files;
+
+void sigquit_handler(int sig)
 {
-    sigset_t mask;
+    for (auto& fn : temporary_files)
+    {
+        unlink(fn.c_str());
+    }
 
-    sigemptyset(&mask);
-    sigaddset(&mask, SIGCHLD);
-
-    sigprocmask(SIG_BLOCK, &mask, nullptr);
+    abort();
 }
 
-void unblock_sigchild()
+void add_sigchld_fd(int fd)
 {
-    sigset_t mask;
+    block_signals_scope scope{SIGCHLD};
 
-    sigemptyset(&mask);
-    sigaddset(&mask, SIGCHLD);
+    if ( sigchld_wakeup_fds.empty() )
+    {
+        install_signal_handler({SIGCHLD}, sigchld_handler);
+    }
 
-    sigprocmask(SIG_UNBLOCK, &mask, nullptr);
+    sigchld_wakeup_fds.insert(fd);
+}
+
+void remove_sigchld_fd(int fd)
+{
+    block_signals_scope scope{SIGCHLD};
+
+    sigchld_wakeup_fds.erase(fd);
+
+    if ( sigchld_wakeup_fds.empty() )
+    {
+        uninstall_signal_handler({SIGCHLD});
+    }
 }
 
 void atfork_prepare_handler()
 {
-    if( sigchild_handler_installed )
-    {
-        block_sigchild();
-    }
+    block_signals({SIGCHLD, SIGINT, SIGQUIT});
 }
 
 void atfork_parent_handler()
 {
-    if( sigchild_handler_installed )
-    {
-        unblock_sigchild();
-    }
+    unblock_signals({SIGCHLD, SIGINT, SIGQUIT});
 }
 
 std::set<int> child_fds;
@@ -121,77 +77,125 @@ std::set<int> child_fds;
 void atfork_child_handler()
 {
     // close all fds registered to be closed in the child process
-    for( int fd : child_fds )
+
+    for (int fd : child_fds)
     {
         close(fd);
     }
 
-    // close fds onlyu once
     child_fds.clear();
 
     // uninstall sigchild handler
-    if( sigchild_handler_installed )
+
+    if ( !sigchld_wakeup_fds.empty() )
     {
-        uninstall_sigchld_handler();
-        unblock_sigchild();
+        uninstall_signal_handler({SIGCHLD});
     }
 
-    // kill process if parent dies
-    prctl(PR_SET_PDEATHSIG, SIGINT);
+    sigchld_wakeup_fds.clear();
+    temporary_files.clear();
 
-    // the paren may have died before calling prctl (there is a race condition)
-    // in that case, it would be adopted by init, whose pid is 1
-    if ( getppid() == 1)
-    {
-        raise(SIGINT);
-    }
-}
+    unblock_signals({SIGCHLD, SIGINT, SIGQUIT});
 
-bool atfork_child_handler_installed = false;
-
-void install_atfork_child_handler()
-{
-    if( !atfork_child_handler_installed)
-    {
-        pthread_atfork(atfork_prepare_handler, atfork_parent_handler, atfork_child_handler);
-        atfork_child_handler_installed = true;
-    }
+    kill_on_parent_death();
 }
 
 } // namespace
 
-namespace pyabc
+void atfork_child_add(PyObject* pyfd)
 {
-
-void atfork_child_add(PyObject *pyfd)
-{
-    install_atfork_child_handler();
-
     int fd = Int_AsLong(pyfd);
-
     child_fds.insert(fd);
 }
 
-void atfork_child_remove(PyObject *pyfd)
+void atfork_child_remove(PyObject* pyfd)
 {
     int fd = Int_AsLong(pyfd);
-
     child_fds.erase(fd);
 }
 
-void install_sigchld_handler(PyObject *pyfd)
+void add_sigchld_fd(PyObject* pyfd)
 {
     int fd = Int_AsLong(pyfd);
-
-    ::install_sigchld_handler(fd);
+    add_sigchld_fd(fd);
 }
 
-void uninstall_sigchld_handler()
+void remove_sigchld_fd(PyObject* pyfd)
 {
-    ::uninstall_sigchld_handler();
+    int fd = Int_AsLong(pyfd);
+    remove_sigchld_fd(fd);
+}
+
+void sys_init()
+{
+    pthread_atfork(
+        atfork_prepare_handler,
+        atfork_parent_handler,
+        atfork_child_handler
+    );
+
+    install_signal_handler({SIGINT, SIGQUIT}, sigquit_handler);
 }
 
 } // namespace pyabc
 
+extern "C"
+int Util_SignalSystem(const char* cmd)
+{
+    int pid = fork();
 
+    if (pid == 0)
+    {
+        const char* argv[] = {
+            "sh",
+            "-c",
+            cmd,
+            nullptr
+        };
 
+        execv("/bin/sh", const_cast<char**>(argv));
+
+        abort();
+    }
+    else if (pid < 0)
+    {
+        return -1;
+    }
+
+    int status = 0;
+
+    pyabc::retry_eintr(waitpid, pid, &status, 0);
+
+    return status;
+}
+
+extern "C"
+void Util_SignalTmpFileRemove(const char* fname, int fLeave)
+{
+    pyabc::block_signals_scope scope{SIGINT, SIGQUIT};
+
+    if (!fLeave)
+    {
+        unlink(fname);
+    }
+
+    pyabc::temporary_files.erase(fname);
+}
+
+extern "C"
+int tmpFile(const char* prefix, const char* suffix, char** out_name);
+
+extern "C"
+int Util_SignalTmpFile(const char* prefix, const char* suffix, char** out_name)
+{
+    pyabc::block_signals_scope scope{SIGINT, SIGQUIT};
+
+    int fd = tmpFile(prefix, suffix, out_name);
+
+    if (fd >= 0)
+    {
+        pyabc::temporary_files.insert(*out_name);
+    }
+
+    return fd;
+}

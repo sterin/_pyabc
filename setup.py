@@ -16,7 +16,7 @@ ext = Extension(
     extra_compile_args=['-std=c++11', '-Wno-write-strings'],
 
     library_dirs=['../abc'],
-    libraries=['abc'],
+    libraries=['abc', 'readline'],
     )
 
 setup(

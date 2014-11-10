@@ -109,7 +109,7 @@ ref<PyObject> has_comb_model()
     Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
     Abc_Ntk_t * pNtk = Abc_FrameReadNtk(pAbc);
 
-    Bool_FromLong(pNtk && pNtk->pModel);
+    return Bool_FromLong(pNtk && pNtk->pModel);
 }
 
 ref<PyObject> has_seq_model()
@@ -117,7 +117,7 @@ ref<PyObject> has_seq_model()
     Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
     Abc_Ntk_t * pNtk = Abc_FrameReadNtk(pAbc);
 
-    Bool_FromLong( pNtk && pNtk->pSeqModel );
+    return Bool_FromLong( pNtk && pNtk->pSeqModel );
 }
 
 ref<PyObject> n_bmc_frames()
@@ -284,37 +284,38 @@ init()
         PYTHONWRAPPER_FUNC_NOARGS(n_phases, 0, ""),
         PYTHONWRAPPER_FUNC_KEYWORDS(is_const_po, 0, ""),
 
-        PYTHONWRAPPER_FUNC_O(set_command_callback, 0, ""),
-        PYTHONWRAPPER_FUNC_O(run_command, 0, ""),
-        PYTHONWRAPPER_FUNC_KEYWORDS(register_command, 0, ""),
-
         PYTHONWRAPPER_FUNC_NOARGS(cex_get_vector, 0, ""),
         PYTHONWRAPPER_FUNC_NOARGS(cex_get, 0, ""),
         PYTHONWRAPPER_FUNC_NOARGS(status_get_vector, 0, ""),
 
+        PYTHONWRAPPER_FUNC_O(run_command, 0, ""),
+        PYTHONWRAPPER_FUNC_O(set_command_callback, 0, ""),
+        PYTHONWRAPPER_FUNC_KEYWORDS(register_command, 0, ""),
+
         PYTHONWRAPPER_FUNC_O(atfork_child_add, 0, "after a fork(), close fd in the child process"),
         PYTHONWRAPPER_FUNC_O(atfork_child_remove, 0, "remove fd from the list of file descriptors to be closed after fork()"),
-        PYTHONWRAPPER_FUNC_O(install_sigchld_handler, 0, "install a SIGCHLD handler that writes a byte into the supplied file descriptor "),
-        PYTHONWRAPPER_FUNC_NOARGS(uninstall_sigchld_handler, 0, "uninstall the SIGCHLD handler"),
 
-        PYTHONWRAPPER_FUNC_KEYWORDS(set_util_callbacks, 0, ""),
+        PYTHONWRAPPER_FUNC_O(add_sigchld_fd, 0, "add a file descriptor to receive a byte every time SIGCHLD is recieved "),
+        PYTHONWRAPPER_FUNC_O(remove_sigchld_fd, 0, ""),
 
         { 0 }
     };
 
     borrowed_ref<PyObject> mod = InitModule3(
-        "_pyabcx",
+        "_pyabc",
         pyzz_methods,
         "Python interface to ABC"
     );
 
     cex::initialize(mod);
+
+    sys_init();
 }
 
 } // namespace pyabc
 
 extern "C"
-void init_pyabcx()
+void init_pyabc()
 {
     pyabc::init();
 }

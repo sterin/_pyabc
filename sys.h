@@ -9,8 +9,10 @@ namespace pyabc
 void atfork_child_add(PyObject *pyfd);
 void atfork_child_remove(PyObject* pyfd);
 
-void install_sigchld_handler(PyObject *pyfd);
-void uninstall_sigchld_handler();
+void add_sigchld_fd(PyObject *pyfd);
+void remove_sigchld_fd(PyObject *pyfd);
+
+void sys_init();
 
 } // namespace pyabc
 

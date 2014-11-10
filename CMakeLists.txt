@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 2.8.4)
 
 project(xxx)
 
+set(CMAKE_CXX_COMPILER             "/usr/bin/clang++")
+
 find_package(PythonLibs REQUIRED)
 include_directories(${PYTHON_INCLUDE_DIRS})
 
@@ -12,7 +14,12 @@ link_directories( ../abc )
 
 add_definitions( -std=c++11 -Wno-write-strings -DLIN64 )
 
-set(SOURCE_FILES pyabc.cpp command.cpp sys.cpp cex.cpp  util.cpp )
+set(SOURCE_FILES
+    pyabc.cpp
+    command.cpp
+    sys.cpp
+    cex.cpp
+    )
 
-PYTHON_ADD_MODULE( _pyabcx SHARED ${SOURCE_FILES} )
-target_link_libraries( _pyabcx abc readline )
+PYTHON_ADD_MODULE( _pyabc SHARED ${SOURCE_FILES} )
+target_link_libraries( _pyabc abc readline )

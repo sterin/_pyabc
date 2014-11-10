@@ -6,9 +6,9 @@
 namespace pyabc
 {
 
-void set_command_callback( PyObject* callback );
-
 ref<PyObject> run_command(PyObject* arg);
+
+void set_command_callback( PyObject* callback );
 void register_command(PyObject* args, PyObject* kwds);
 
 } // namespace pyabc
