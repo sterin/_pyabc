@@ -22,7 +22,7 @@ void sigchld_handler(int)
 
     for( int fd : sigchld_wakeup_fds )
     {
-        retry_eintr(write, fd, ".", 1);
+        retry_eintr(write, fd, "C", 1);
     }
 }
 

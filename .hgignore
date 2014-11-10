@@ -4,3 +4,11 @@ syntax: glob
 
 *.pyc
 *.pyo
+
+build/
+dist/
+bdist/
+lib/
+
+*.egg-info/
+*.so
