@@ -32,7 +32,7 @@ inline void block_signals(std::initializer_list<int> signals, sigset_t* old=null
 
     for( int sig : signals )
     {
-        sigaddset(&mask, SIGCHLD);
+        sigaddset(&mask, sig);
     }
 
     sigprocmask(SIG_BLOCK, &mask, old);
@@ -45,7 +45,7 @@ inline void unblock_signals(std::initializer_list<int> signals)
 
     for( int sig : signals )
     {
-        sigaddset(&mask, SIGCHLD);
+        sigaddset(&mask, sig);
     }
 
     sigprocmask(SIG_UNBLOCK, &mask, nullptr);

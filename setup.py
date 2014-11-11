@@ -5,7 +5,6 @@ source_files = [
     'command.cpp',
     'cex.cpp',
     'sys.cpp',
-    'util.cpp',
 ]
 
 ext = Extension(
