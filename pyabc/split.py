@@ -1,5 +1,5 @@
 """
-module pyabc_split
+module pyabc.split
 
 Executes python functions and their arguements as separate processes and returns their return values through pickling. This modules offers a single function:
 
@@ -98,7 +98,6 @@ import pickle
 import traceback
 
 import sys
-sys.path.append('/home/sterin/.clion10/system/cmake/generated/4d2ffe72/4d2ffe72/Debug')
 import _pyabc
 
 def _eintr_retry_call(f, *args, **kwds):
@@ -505,47 +504,21 @@ def temp_file_names(suffixes):
         for name in names:
             os.unlink(name)
 
-import ctypes
-xxx = ctypes.CDLL(_pyabc.__file__)
-
-def mysystem(cmd):
-    return xxx.Util_SignalSystem(ctypes.c_char_p(cmd))
-
-def mytempfile(prefix, suffix):
-
-    out = ctypes.c_char_p()
-
-    rc = xxx.Util_SignalTmpFile(
-        ctypes.c_char_p(prefix),
-        ctypes.c_char_p(suffix),
-        ctypes.byref(out)
-    )
-
-    if rc >= 0:
-        return rc, out.value
-
-    return None
-
-
 if __name__ == "__main__":
 
     # define some functions to run
 
     def f_1(i):
-        # mysystem('exec ack-grep xxx /')
-        mytempfile('zzzzzzzzzzz', 'fffffff')
         import time
-        time.sleep(100)
+        time.sleep(10)
         return i+1
 
     def f_2(i,j):
-        import time
-        time.sleep(8)
         return i*10+j+1
 
     def f_3(i,j,k):
         import time
-        time.sleep(8)
+        time.sleep(2)
         return i*100+j*10+k+1
 
     # Construct a tuple of the function and arguments for each function
@@ -560,11 +533,11 @@ if __name__ == "__main__":
 
     # Use the function split_all() to run these functions in separate processes:
 
-    for res in split_all(funcs, timeout=1):
+    for res in split_all(funcs, timeout=4):
         print res
 
     # Alternatively, quit after the first process returns:
 
-    for res in split_all(funcs, timeout=1):
+    for res in split_all(funcs):
         print res
         break
