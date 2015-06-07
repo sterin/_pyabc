@@ -72,6 +72,8 @@ def cmd_python(cmd_args):
                 if os.path.exists(fname):
                     execfile(fname, _python_command_globals)
                     break
+            else:
+                raise RuntimeError('file "%s" not found'% fname)
 
     return 0
 
