@@ -23,7 +23,7 @@ ref<PyObject> n_ands()
         return Int_FromLong(Abc_NtkNodeNum(pNtk));
     }
 
-    return None;
+    return Int_FromLong(-1);
 }
 
 ref<PyObject> n_nodes()
@@ -36,7 +36,7 @@ ref<PyObject> n_nodes()
         return Int_FromLong(Abc_NtkNodeNum(pNtk));
     }
 
-    return None;
+    return Int_FromLong(-1);
 }
 
 ref<PyObject> n_pis()
@@ -49,7 +49,7 @@ ref<PyObject> n_pis()
         return Int_FromLong(Abc_NtkPiNum(pNtk));
     }
 
-    return None;
+    return Int_FromLong(-1);
 }
 
 ref<PyObject> n_pos()
@@ -62,7 +62,7 @@ ref<PyObject> n_pos()
         return Int_FromLong(Abc_NtkPoNum(pNtk));
     }
 
-    return None;
+    return Int_FromLong(-1);
 }
 
 ref<PyObject> n_latches()
@@ -75,7 +75,7 @@ ref<PyObject> n_latches()
         return Int_FromLong(Abc_NtkLatchNum(pNtk));
     }
 
-    return None;
+    return Int_FromLong(-1);
 }
 
 ref<PyObject> n_levels()
@@ -88,7 +88,7 @@ ref<PyObject> n_levels()
         return Int_FromLong(Abc_NtkLevel(pNtk));
     }
 
-    return None;
+    return Int_FromLong(-1);
 }
 
 ref<PyObject> n_area()
@@ -101,7 +101,7 @@ ref<PyObject> n_area()
         return Float_FromDouble(Abc_NtkGetMappedArea(pNtk));
     }
 
-    return None;
+    return Int_FromLong(-1);
 }
 
 ref<PyObject> has_comb_model()
@@ -156,7 +156,7 @@ ref<PyObject> n_cex_pis()
        return Int_FromLong( Abc_FrameReadCexPiNum( pAbc ));
     }
 
-    return None;
+    return Int_FromLong(-1);
 }
 
 ref<PyObject> n_cex_regs()
@@ -168,7 +168,7 @@ ref<PyObject> n_cex_regs()
         return Int_FromLong(Abc_FrameReadCexRegNum(pAbc));
     }
 
-    return None;
+    return Int_FromLong(-1);
 }
 
 ref<PyObject> cex_po()
@@ -180,7 +180,7 @@ ref<PyObject> cex_po()
         return Int_FromLong(Abc_FrameReadCexPo( pAbc ));
     }
 
-    return None;
+    return Int_FromLong(-1);
 }
 
 ref<PyObject> cex_frame()
@@ -192,7 +192,7 @@ ref<PyObject> cex_frame()
         return Int_FromLong( Abc_FrameReadCexFrame( pAbc ));
     }
 
-    return None;
+    return Int_FromLong(-1);
 }
 
 ref<PyObject> n_phases()
