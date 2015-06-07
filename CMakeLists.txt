@@ -4,7 +4,7 @@ project(xxx)
 
 set(CMAKE_CXX_COMPILER             "/usr/bin/clang++")
 
-find_package(PythonLibs REQUIRED)
+find_package(PythonLibs 2.7 REQUIRED)
 include_directories(${PYTHON_INCLUDE_DIRS})
 
 include_directories( ../pywrapper/src )
