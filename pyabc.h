@@ -10,6 +10,8 @@ namespace pyabc
 
 using namespace py;
 
+void init();
+
 } // namespace pyabc
 
 #endif // ifndef pyabc_pyabc__H
