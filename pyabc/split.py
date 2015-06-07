@@ -504,6 +504,44 @@ def temp_file_names(suffixes):
         for name in names:
             os.unlink(name)
 
+class abc_state(object):
+    def __init__(self):
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.aig') as file:
+            self.aig = file.name
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.log') as file:
+            self.log = file.name
+        pyabc.run_command(r'write_status %s'%self.log)
+        pyabc.run_command(r'write_aiger %s'%self.aig)
+
+    def __del__(self):
+        os.unlink( self.aig )
+        os.unlink( self.log )
+
+    def restore(self):
+        pyabc.run_command(r'read_aiger %s'%self.aig)
+        pyabc.run_command(r'read_status %s'%self.log)
+
+def abc_split_all(funcs):
+    import pyabc
+
+    def child(f, aig, log):
+        res = f()
+        pyabc.run_command(r'write_status %s'%log)
+        pyabc.run_command(r'write_aiger %s'%aig)
+        return res
+
+    def parent(res, aig, log):
+        pyabc.run_command(r'read_aiger %s'%aig)
+        pyabc.run_command(r'read_status %s'%log)
+        return res
+
+    with temp_file_names( ['.aig','.log']*len(funcs) ) as tmp:
+
+        funcs = [ defer(child)(f, tmp[2*i],tmp[2*i+1]) for i,f in enumerate(funcs) ]
+
+        for i, res in split_all_full(funcs):
+            yield i, parent(res, tmp[2*i],tmp[2*i+1])
+
 if __name__ == "__main__":
 
     # define some functions to run
@@ -541,3 +579,33 @@ if __name__ == "__main__":
     for res in split_all(funcs):
         print res
         break
+
+    # For operations with ABC that save and restore status
+
+    import pyabc
+
+    def abc_f(truth):
+        import os
+        print "pid=%d, abc_f(%s)"%(os.getpid(), truth)
+        pyabc.run_command('read_truth %s'%truth)
+        pyabc.run_command('strash')
+        return 100
+
+    funcs = [
+        defer(abc_f)("1000"),
+        defer(abc_f)("0001")
+    ]
+
+    best = None
+
+    for i, res in abc_split_all(funcs):
+        print i, res
+        if best is None:\
+            # save state
+            best = abc_state()
+        pyabc.run_command('write_verilog /dev/stdout')
+
+    # if there is a saved state, restore it
+    if best is not None:
+        best.restore()
+        pyabc.run_command('write_verilog /dev/stdout')
