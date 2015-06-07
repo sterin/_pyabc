@@ -23,3 +23,6 @@ set(SOURCE_FILES
 
 PYTHON_ADD_MODULE( _pyabc SHARED ${SOURCE_FILES} )
 target_link_libraries( _pyabc abc readline )
+
+add_executable( abce ${SOURCE_FILES} main.cpp )
+target_link_libraries( abce abc  python2.7 readline pthread dl )
