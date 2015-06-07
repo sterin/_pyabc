@@ -62,14 +62,16 @@ void remove_sigchld_fd(int fd)
     }
 }
 
+sigset_t pre_fork_sigprocmask;
+
 void atfork_prepare_handler()
 {
-    block_signals({SIGCHLD, SIGINT, SIGQUIT});
+    block_signals({SIGCHLD, SIGINT, SIGQUIT}, &pre_fork_sigprocmask);
 }
 
 void atfork_parent_handler()
 {
-    unblock_signals({SIGCHLD, SIGINT, SIGQUIT});
+    sigprocmask(SIG_SETMASK, &pre_fork_sigprocmask, nullptr);
 }
 
 std::set<int> child_fds;
@@ -95,7 +97,7 @@ void atfork_child_handler()
     sigchld_wakeup_fds.clear();
     temporary_files.clear();
 
-    unblock_signals({SIGCHLD, SIGINT, SIGQUIT});
+    sigprocmask(SIG_SETMASK, &pre_fork_sigprocmask, nullptr);
 
     kill_on_parent_death(SIGQUIT);
 }
