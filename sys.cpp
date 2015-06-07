@@ -35,7 +35,7 @@ void sigquit_handler(int sig)
         unlink(fn.c_str());
     }
 
-    abort();
+    _exit(1);
 }
 
 void add_sigchld_fd(int fd)
@@ -157,7 +157,7 @@ int Util_SignalSystem(const char* cmd)
 
         execv("/bin/sh", const_cast<char**>(argv));
 
-        abort();
+        _exit(1);
     }
     else if (pid < 0)
     {
