@@ -43,7 +43,6 @@ def save_stdout( src = sys.stdout ):
     
 @contextmanager
 def redirect(dst = null_file, src = sys.stdout):
-    
     """
     Redirect the src stream into dst.
     
