@@ -194,10 +194,7 @@ int Util_SignalTmpFile(const char* prefix, const char* suffix, char** out_name)
 
     int fd = tmpFile(prefix, suffix, out_name);
 
-    if (fd >= 0)
-    {
-        pyabc::temporary_files.insert(*out_name);
-    }
+    pyabc::temporary_files.insert(*out_name);
 
     return fd;
 }
