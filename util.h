@@ -90,16 +90,16 @@ private:
     int _errno;
 };
 
-inline void kill_on_parent_death()
+inline void kill_on_parent_death(int sig)
 {
     // kill process if parent dies
-    prctl(PR_SET_PDEATHSIG, SIGQUIT);
+    prctl(PR_SET_PDEATHSIG, sig);
 
     // the parent may have died before calling prctl (there is a race condition)
     // in that case, it would be adopted by init, whose pid is 1
     if (getppid() == 1)
     {
-        raise(SIGQUIT);
+        raise(sig);
     }
 }
 

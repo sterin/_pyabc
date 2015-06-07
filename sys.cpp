@@ -97,7 +97,7 @@ void atfork_child_handler()
 
     unblock_signals({SIGCHLD, SIGINT, SIGQUIT});
 
-    kill_on_parent_death();
+    kill_on_parent_death(SIGQUIT);
 }
 
 } // namespace
