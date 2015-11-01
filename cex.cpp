@@ -42,7 +42,6 @@ cex::initialize(PyObject* module)
 ref<PyObject> cex::n_regs()
 {
     return Int_FromLong( _pCex->nRegs );
-
 }
 
 ref<PyObject> cex::n_pis()
