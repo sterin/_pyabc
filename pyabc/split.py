@@ -373,14 +373,15 @@ class _splitter(object):
 
         # call function
         try:
-            res = f(*args, **kwargs)
-        except:
-            traceback.print_exc()
-            raise
 
-        # write return value into pipe
-        with os.fdopen( fd, "w" ) as fout:
-            pickle.dump(res, fout)
+            res = f(*args, **kwargs)
+
+            with os.fdopen(fd, "w") as fout:
+                pickle.dump(res, fout)
+
+        except:
+            traceback.print_exc(file=sys.stderr)
+            raise
 
         return 0
 
