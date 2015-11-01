@@ -3,7 +3,9 @@
 
 #include "pyabc.h"
 
+ABC_NAMESPACE_HEADER_START
 typedef struct Abc_Cex_t_ Abc_Cex_t;
+ABC_NAMESPACE_HEADER_END
 
 namespace pyabc
 {
@@ -29,7 +31,7 @@ public:
 
 private:
 
-    Abc_Cex_t* _pCex;
+    ABC_NAMESPACE_PREFIX Abc_Cex_t* _pCex;
 };
 
 ref<PyObject> cex_get_vector();
