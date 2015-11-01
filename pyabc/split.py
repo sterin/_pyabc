@@ -251,12 +251,16 @@ class _splitter(object):
 
         return uid
 
-    def _reap_timers(self, now):
+    def _reap_timers(self, now, notify=False):
 
         while self.timers and self.timers[0][0] <= now:
 
             t, uid = heapq.heappop(self.timers)
             self.expired_timers.append(uid)
+
+        if notify and self.expired_timers:
+
+            self._timer_callback()
 
         if self.timers:
 
