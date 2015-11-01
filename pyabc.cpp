@@ -13,6 +13,19 @@ namespace pyabc
 {
 using namespace py;
 
+ref<PyObject> VecInt_To_PyList(Vec_Int_t* v)
+{
+    ref<PyObject> pylist = List_New(Vec_IntSize(v));
+
+    int elem, i;
+    Vec_IntForEachEntry( v, elem, i)
+    {
+        List_SetItem(pylist, i, Int_FromLong(elem));
+    }
+
+    return pylist;
+}
+
 ref<PyObject> n_ands()
 {
     Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
@@ -213,7 +226,7 @@ ref<PyObject> is_const_po( PyObject* args, PyObject* kwds )
     return Bool_FromLong( Abc_FrameCheckPoConst( pAbc, iPoNum ) );
 }
 
-void create_abc_array(PyObject* seq)
+ref<PyObject> create_abc_array(PyObject* seq)
 {
     Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
     Vec_Int_t *vObjIds = Abc_FrameReadObjIds(pAbc);
@@ -224,6 +237,21 @@ void create_abc_array(PyObject* seq)
     {
         Vec_IntPush( vObjIds, Int_AsLong(item));
     });
+
+    return None;
+}
+
+ref<PyObject> pyabc_array_read_entry(PyObject* pyi)
+{
+    int i = Int_AsLong(pyi);
+
+    Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
+    Vec_Int_t *vObjIds = Abc_FrameReadObjIds(pAbc);
+
+    if( !vObjIds )
+        return Int_FromLong(-1);
+
+    return Int_FromLong(Vec_IntEntry( vObjIds, i ));
 }
 
 ref<PyObject> eq_classes()
@@ -240,20 +268,55 @@ ref<PyObject> eq_classes()
 
     int i;
     Vec_Int_t* v;
+
     Vec_PtrForEachEntry( Vec_Int_t*, vPoEquivs, v, i )
     {
-        ref<PyObject> l = List_New( Vec_IntSize(v));
-
-        int elem, i;
-        Vec_IntForEachEntry( v, elem, i)
-        {
-            List_SetItem( l, i, Int_FromLong(elem) );
-        }
-
-        PyList_SetItem( classes, i, l );
+        List_SetItem(classes, i, VecInt_To_PyList(v));
     }
 
     return classes;
+}
+
+ref<PyObject> co_supp(PyObject* pyCo)
+{
+    int iCo = Int_AsLong(pyCo);
+
+    Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
+    Abc_Ntk_t * pNtk = Abc_FrameReadNtk(pAbc);
+
+    if ( !pNtk )
+    {
+        return None;
+    }
+
+    Vec_Int_t* vSupp = Abc_NtkNodeSupportInt( pNtk, iCo );
+
+    if( !vSupp )
+    {
+        return None;
+    }
+
+    ref<PyObject> co_supp = VecInt_To_PyList( vSupp );
+
+    Vec_IntFree( vSupp );
+
+    return co_supp;
+}
+
+ref<PyObject> _is_func_iso(PyObject* args)
+{
+    int iCo1, iCo2, fCommon;
+    Arg_ParseTuple(args, "iii:_is_func_iso", &iCo1, &iCo2, &fCommon);
+
+    Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
+    Abc_Ntk_t * pNtk = Abc_FrameReadNtk(pAbc);
+
+    if ( !pNtk )
+    {
+        return None;
+    }
+
+    return Int_FromLong( Abc_NtkFunctionalIso( pNtk, iCo1, iCo2, fCommon ) );
 }
 
 void
@@ -283,6 +346,13 @@ init()
         PYTHONWRAPPER_FUNC_NOARGS(cex_frame, 0, ""),
         PYTHONWRAPPER_FUNC_NOARGS(n_phases, 0, ""),
         PYTHONWRAPPER_FUNC_KEYWORDS(is_const_po, 0, ""),
+
+        PYTHONWRAPPER_FUNC_O(create_abc_array, 0, ""),
+        PYTHONWRAPPER_FUNC_O(pyabc_array_read_entry, 0, ""),
+
+        PYTHONWRAPPER_FUNC_NOARGS(eq_classes, 0, ""),
+        PYTHONWRAPPER_FUNC_O(co_supp, 0, ""),
+        PYTHONWRAPPER_FUNC_VARARGS(_is_func_iso, 0, ""),
 
         PYTHONWRAPPER_FUNC_NOARGS(cex_get_vector, 0, ""),
         PYTHONWRAPPER_FUNC_NOARGS(cex_get, 0, ""),
