@@ -407,8 +407,7 @@ class _splitter(object):
 
                 os.close(pw)
 
-                uid = self._start_monitoring(pid, pr)
-                return uid
+                return self._start_monitoring(pid, pr)
 
         finally:
 
