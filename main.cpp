@@ -18,10 +18,18 @@ int main(int argc, char *argv[])
     Py_NoSiteFlag = 1;
 
     PyImport_AppendInittab("_pyabc", pyabc::init);
+    PyImport_AppendInittab("_pyzz", pyzz::zz_init);
 
     py::initialize interpreter(argv[0]);
 
-    py::Import_ImportModule("pyabc");
+    try
+    {
+        py::Import_ImportModule("pyabc");
+    }
+    catch(py::exception&)
+    {
+        fprintf( stderr, "error: pyabc module not found. PYTHONPATH may not be set properly.\n");
+    }
 
     return ABC_NAMESPACE_PREFIX Abc_RealMain(argc, argv);
 }
