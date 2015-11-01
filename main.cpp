@@ -1,9 +1,19 @@
 #include "pyabc.h"
 
-extern "C"
-int Abc_RealMain(int argc, char* argv[]);
+#include <misc/util/abc_global.h>
 
-int main(int argc, char* argv[])
+ABC_NAMESPACE_HEADER_START
+
+int Abc_RealMain(int argc, char *argv[]);
+
+ABC_NAMESPACE_HEADER_END
+
+namespace pyzz
+{
+void zz_init();
+}
+
+int main(int argc, char *argv[])
 {
     Py_NoSiteFlag = 1;
 
@@ -13,5 +23,5 @@ int main(int argc, char* argv[])
 
     py::Import_ImportModule("pyabc");
 
-    return Abc_RealMain( argc, argv );
+    return ABC_NAMESPACE_PREFIX Abc_RealMain(argc, argv);
 }
