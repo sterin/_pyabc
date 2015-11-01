@@ -371,7 +371,6 @@ class _splitter(object):
 
     def _child( self, fd, f, args, kwargs):
 
-        # call function
         try:
 
             res = f(*args, **kwargs)
@@ -400,7 +399,9 @@ class _splitter(object):
             if pid == 0:
 
                 _pyabc.atfork_child_add(pw)
+
                 rc = self._child(pw, f, args, kwargs)
+
                 os._exit(rc)
 
             else:
