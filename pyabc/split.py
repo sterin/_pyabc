@@ -269,7 +269,7 @@ class _splitter(object):
 
         # kill all remaining child process
         for pid, uid in self.pid_to_uid.iteritems():
-            os.kill(pid, signal.SIGKILL)
+            os.kill(pid, signal.SIGQUIT)
 
         # reap kill child processes
         for _ in self.results():
@@ -316,7 +316,7 @@ class _splitter(object):
     def kill(self, uid):
 
         pid = self.uid_to_pid[uid]
-        os.kill(pid, signal.SIGKILL)
+        os.kill(pid, signal.SIGQUIT)
 
     def _reap(self):
 
