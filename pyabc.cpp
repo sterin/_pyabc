@@ -11,6 +11,7 @@
 
 namespace pyabc
 {
+
 using namespace py;
 
 ref<PyObject> VecInt_To_PyList(Vec_Int_t* v)
@@ -374,7 +375,7 @@ init()
     borrowed_ref<PyObject> mod = InitModule3(
         "_pyabc",
         pyzz_methods,
-        "Python interface to ABC"
+        "A Python interface to ABC"
     );
 
     cex::initialize(mod);
