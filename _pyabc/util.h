@@ -5,7 +5,6 @@
 
 #include <signal.h>
 #include <errno.h>
-#include <sys/prctl.h>
 
 
 namespace pyabc
@@ -90,18 +89,16 @@ private:
     int _errno;
 };
 
-inline void kill_on_parent_death(int sig)
-{
-    // kill process if parent dies
-    prctl(PR_SET_PDEATHSIG, sig);
+#ifdef __linux__
 
-    // the parent may have died before calling prctl (there is a race condition)
-    // in that case, it would be adopted by init, whose pid is 1
-    if (getppid() == 1)
-    {
-        raise(sig);
-    }
+void kill_on_parent_death(int sig)
+{
+
 }
+
+#endif // #ifdef __linux__
+
+#elsif defined(__apple__
 
 inline void install_signal_handler(std::initializer_list<int> signals, void (*handler)(int))
 {
