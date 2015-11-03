@@ -1,5 +1,7 @@
 #include "util.h"
 
+#include <unistd.h>
+
 #ifdef __linux__
 
 #include <sys/prctl.h>
@@ -23,6 +25,10 @@ void kill_on_parent_death(int sig)
 } // namespace pyabc
 
 #elif defined(__APPLE__)
+
+#include <thread>
+
+#include <cassert>
 
 #include <sys/types.h>
 #include <sys/event.h>
@@ -57,7 +63,7 @@ void kill_on_parent_death(int sig)
     }
 
     // now block on kevent until the the parent process dies
-    retry_eintr([](){
+    retry_eintr([&](){
        return kevent(kq, &change, 1, &event, 1, nullptr);
     });
 
