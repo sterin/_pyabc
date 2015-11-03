@@ -89,16 +89,7 @@ private:
     int _errno;
 };
 
-#ifdef __linux__
-
-void kill_on_parent_death(int sig)
-{
-
-}
-
-#endif // #ifdef __linux__
-
-#elsif defined(__apple__
+void kill_on_parent_death(int sig);
 
 inline void install_signal_handler(std::initializer_list<int> signals, void (*handler)(int))
 {

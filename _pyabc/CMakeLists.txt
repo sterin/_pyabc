@@ -1,6 +1,6 @@
 include(FindThreads)
 
-set(pyabc_source_files pyabc.cpp command.cpp sys.cpp cex.cpp)
+set(pyabc_source_files pyabc.cpp command.cpp sys.cpp cex.cpp util.cpp)
 
 python_add_module(_pyabc SHARED ${pyabc_source_files} _pyabc.cpp)
 target_link_libraries(_pyabc libabc-pic pywrapper Threads::Threads)
