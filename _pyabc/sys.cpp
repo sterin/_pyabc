@@ -2,6 +2,7 @@
 #include "util.h"
 
 #include <set>
+#include <string>
 
 #include <unistd.h>
 #include <signal.h>

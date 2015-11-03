@@ -1,6 +1,6 @@
 #include "util.h"
 
-#ifdef __LINUX__
+#ifdef __linux__
 
 #include <sys/prctl.h>
 
@@ -22,7 +22,7 @@ void kill_on_parent_death(int sig)
 
 } // namespace pyabc
 
-#elseif defined(__APPLE__)
+#elif defined(__APPLE__)
 
 #include <sys/types.h>
 #include <sys/event.h>
