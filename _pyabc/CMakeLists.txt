@@ -8,5 +8,5 @@ target_link_libraries(_pyabc libabc-pic pywrapper Threads::Threads)
 python_add_module(_pyabc-static STATIC ${pyabc_source_files})
 target_link_libraries(_pyabc-static libabc pywrapper Threads::Threads)
 
-add_executable(pyabc_exe main.cpp ${pyabc_source_files})
-target_link_libraries(pyabc_exe _pyabc-static _pyzz-static)
+add_executable(pyabc.exe main.cpp ${pyabc_source_files})
+target_link_libraries(pyabc.exe _pyabc-static _pyzz-static)
