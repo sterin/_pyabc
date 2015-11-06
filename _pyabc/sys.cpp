@@ -142,7 +142,17 @@ void sys_init()
 
 } // namespace pyabc
 
-extern "C"
+#include <misc/util/abc_global.h>
+
+ABC_NAMESPACE_HEADER_START
+
+int tmpFile(const char* prefix, const char* suffix, char** out_name);
+
+ABC_NAMESPACE_HEADER_END
+
+
+ABC_NAMESPACE_IMPL_START
+
 int Util_SignalSystem(const char* cmd)
 {
     int pid = fork();
@@ -172,7 +182,6 @@ int Util_SignalSystem(const char* cmd)
     return status;
 }
 
-extern "C"
 void Util_SignalTmpFileRemove(const char* fname, int fLeave)
 {
     pyabc::block_signals_scope scope{SIGINT, SIGQUIT};
@@ -185,10 +194,6 @@ void Util_SignalTmpFileRemove(const char* fname, int fLeave)
     pyabc::temporary_files.erase(fname);
 }
 
-extern "C"
-int tmpFile(const char* prefix, const char* suffix, char** out_name);
-
-extern "C"
 int Util_SignalTmpFile(const char* prefix, const char* suffix, char** out_name)
 {
     pyabc::block_signals_scope scope{SIGINT, SIGQUIT};
@@ -199,3 +204,5 @@ int Util_SignalTmpFile(const char* prefix, const char* suffix, char** out_name)
 
     return fd;
 }
+
+ABC_NAMESPACE_IMPL_END
