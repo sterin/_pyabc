@@ -325,7 +325,7 @@ init()
 {
     Abc_Start();
 
-    static PyMethodDef pyzz_methods[] =
+    static PyMethodDef pyabc_methods[] =
     {
         PYTHONWRAPPER_FUNC_NOARGS(n_ands, 0, ""),
         PYTHONWRAPPER_FUNC_NOARGS(n_nodes, 0, ""),
@@ -374,7 +374,7 @@ init()
 
     borrowed_ref<PyObject> mod = InitModule3(
         "_pyabc",
-        pyzz_methods,
+        pyabc_methods,
         "A Python interface to ABC"
     );
 

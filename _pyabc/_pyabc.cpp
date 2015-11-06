@@ -1,10 +1,10 @@
-namespace pyzz
+namespace pyabc
 {
-    void zz_init();
+    void init();
 }
 
 extern "C"
-void init_pyzz()
+void init_pyabc()
 {
-    pyzz::zz_init();
+    pyabc::init();
 }
