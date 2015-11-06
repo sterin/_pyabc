@@ -384,9 +384,3 @@ init()
 }
 
 } // namespace pyabc
-
-extern "C"
-void init_pyabc()
-{
-    pyabc::init();
-}
