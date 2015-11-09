@@ -32,11 +32,12 @@ self_dir=$(dirname "${self}")
 self_dir=$(abspath "${self_dir}")
 
 abc_root=$(dirname "${self_dir}")
-abc_exe="${abc_root}/bin/pyabc.exe"
+abc_exe="${abc_root}/bin/abc.exe"
 
 export PATH="${abc_root}/bin:$PATH"
 
 export PYTHONPATH="${abc_root}/lib":"${PYTHONPATH}"
+export LD_LIBRARY_PATH="${abc_root}/lib":"${LD_LIBRARY_PATH}"
 
 if [ -f "${abc_root}/lib/python_library.zip" ] ; then
     export PYTHONHOME="${abc_root}"
@@ -50,9 +51,7 @@ if [ "$1" = "--debug" ]; then
     
     echo export PYTHONHOME=$PYTHONHOME
     echo export PYTHONPATH=$PYTHONPATH
-
-    echo export ABC_PYTHON_SCRIPTS=$ABC_PYTHON_SCRIPTS
-    echo export ABC_PYTHON_ABC_RC=$ABC_PYTHON_ABC_RC
+    echo export LD_LIBRARY_PATH=$LD_LIBRARY_PATH
 fi
 
 if [ -f "${abc_root}/lib/super_prove/abc.rc" ] ; then
