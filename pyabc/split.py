@@ -162,17 +162,17 @@ class _unique_ids(object):
 
         return len(self.live)
 
-class _epoll(object):
+class _poller(object):
 
     def __init__(self):
 
         self.epoll = select.epoll()
         self.registered_fds = set()
 
-    def register(self, fd, *args):
+    def register(self, fd):
 
         self.registered_fds.add(fd)
-        return self.epoll.register(fd, *args)
+        return self.epoll.register(fd, select.EPOLLIN)
 
     def unregister(self, fd):
 
@@ -183,24 +183,15 @@ class _epoll(object):
 
     def poll(self):
 
-        events = _eintr_retry_call( self.epoll.poll )
-
-        filtered_events = []
-
-        for fd, event in events:
+        for fd, event in _eintr_retry_call( self.epoll.poll ):
 
             if event & select.EPOLLHUP:
-
                 if fd in self.registered_fds:
-
                     self.epoll.unregister(fd)
                     self.registered_fds.remove(fd)
 
             if event != select.EPOLLHUP:
-
-                filtered_events.append( (fd, event) )
-
-        return filtered_events
+                yield fd
 
     def close(self):
 
@@ -232,8 +223,8 @@ class _splitter(object):
 
         _pyabc.add_sigchld_fd(self.sigchld_fd_write);
 
-        self.epoll = _epoll()
-        self.epoll.register(self.sigchld_fd, select.EPOLLIN)
+        self.poll = _poller()
+        self.poll.register(self.sigchld_fd)
 
         self.timers = []
         self.expired_timers = collections.deque()
@@ -279,7 +270,7 @@ class _splitter(object):
         for _ in self.results():
             pass
 
-        self.epoll.close()
+        self.poll.close()
 
         _pyabc.atfork_child_remove(self.sigchld_fd)
         os.close(self.sigchld_fd)
@@ -291,7 +282,7 @@ class _splitter(object):
 
     def _start_monitoring(self, pid, fd):
 
-        self.epoll.register(fd, select.EPOLLIN)
+        self.poll.register(fd)
 
         uid = self.uids.allocate()
 
@@ -313,9 +304,10 @@ class _splitter(object):
         data = _eintr_retry_nonblocking(os.read, fd, 16384)
 
         if data:
-
             buf = self.fd_to_buf[fd]
             buf.write(data)
+        else:
+            self.poll.unregister(fd)
 
     def kill(self, uid):
 
@@ -352,7 +344,7 @@ class _splitter(object):
                 result = None
 
         # stop tracking the process
-        self.epoll.unregister(fd)
+        self.poll.unregister(fd)
 
         # close pipe
         os.close(fd)
@@ -426,17 +418,17 @@ class _splitter(object):
 
         while self.uids:
 
-            events = _eintr_retry_call( self.epoll.poll )
+            events = list(self.poll.poll())
 
-            for fd, event in events:
+            for fd in events:
 
-                if fd != self.sigchld_fd and event & select.EPOLLIN:
+                if fd != self.sigchld_fd:
 
                     self._read_by_fd(fd)
 
-            for fd, event in events:
+            for fd in events:
 
-                if fd == self.sigchld_fd and event & select.EPOLLIN:
+                if fd == self.sigchld_fd:
 
                         ch = _eintr_retry_nonblocking(os.read, self.sigchld_fd, 1)
 
