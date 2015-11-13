@@ -44,7 +44,7 @@ void kill_on_parent_death(int sig)
   std::thread monitor_thread([ppid, sig](){
 
     struct kevent change;
-    EV_SET(&change, ppid, EVFILT_PROC, EV_ADD, NOTE_EXIT|NOTE_SIGNAL, 0, nullptr);
+    EV_SET(&change, ppid, EVFILT_PROC, EV_ADD, NOTE_EXIT, 0, nullptr);
 
     int kq = kqueue();
     assert( kq >= 0 );
