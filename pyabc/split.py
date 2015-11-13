@@ -104,10 +104,13 @@ def _eintr_retry_call(f, *args, **kwds):
     while True:
         try:
             return f(*args, **kwds)
+        except select.error as (e, msg):
+            if e != errno.EINTR:
+                raise
         except (OSError, IOError) as e:
-            if e.errno == errno.EINTR:
-                continue
-            raise
+            if e.errno != errno.EINTR:
+                raise e
+
 
 def _eintr_retry_nonblocking(f, *args, **kwds):
     while True:
@@ -119,6 +122,10 @@ def _eintr_retry_nonblocking(f, *args, **kwds):
             if e.errno in (errno.EAGAIN, errno.EWOULDBLOCK):
                 return None
             raise
+        except select.error as (e, msg):
+            if e != errno.EINTR:
+                raise
+
 
 def _set_non_blocking(fd):
     fcntl.fcntl( fd, fcntl.F_SETFL, fcntl.fcntl(fd, fcntl.F_GETFL) | os.O_NONBLOCK )
@@ -162,40 +169,62 @@ class _unique_ids(object):
 
         return len(self.live)
 
-class _poller(object):
+if hasattr(select, "epoll"):
 
-    def __init__(self):
+    class _poller(object):
 
-        self.epoll = select.epoll()
-        self.registered_fds = set()
+        def __init__(self):
 
-    def register(self, fd):
+            self.epoll = select.epoll()
+            self.registered_fds = set()
 
-        self.registered_fds.add(fd)
-        return self.epoll.register(fd, select.EPOLLIN)
+        def register(self, fd):
 
-    def unregister(self, fd):
+            self.registered_fds.add(fd)
+            return self.epoll.register(fd, select.EPOLLIN)
 
-        if fd in self.registered_fds:
+        def unregister(self, fd):
 
-            self.epoll.unregister(fd)
-            self.registered_fds.remove(fd)
+            if fd in self.registered_fds:
 
-    def poll(self):
+                self.epoll.unregister(fd)
+                self.registered_fds.remove(fd)
 
-        for fd, event in _eintr_retry_call( self.epoll.poll ):
+        def poll(self):
 
-            if event & select.EPOLLHUP:
-                if fd in self.registered_fds:
-                    self.epoll.unregister(fd)
-                    self.registered_fds.remove(fd)
+            for fd, event in _eintr_retry_call( self.epoll.poll ):
 
-            if event != select.EPOLLHUP:
-                yield fd
+                if event & select.EPOLLHUP:
+                    if fd in self.registered_fds:
+                        self.epoll.unregister(fd)
+                        self.registered_fds.remove(fd)
 
-    def close(self):
+                if event != select.EPOLLHUP:
+                    yield fd
 
-        self.epoll.close()
+        def close(self):
+
+            self.epoll.close()
+else:
+
+    class _poller(object):
+
+        def __init__(self):
+            self.registered_fds = set()
+
+        def register(self, fd):
+            self.registered_fds.add(fd)
+
+        def unregister(self, fd):
+            if fd in self.registered_fds:
+                self.registered_fds.remove(fd)
+
+        def poll(self):
+            rlist, _, _ = _eintr_retry_call( select.select, self.registered_fds, [], self.registered_fds )
+            return rlist
+
+        def close(self):
+            pass
 
 
 class _splitter(object):
