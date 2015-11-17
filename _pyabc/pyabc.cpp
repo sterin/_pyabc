@@ -224,7 +224,7 @@ ref<PyObject> is_const_po( PyObject* args, PyObject* kwds )
     Arg_ParseTupleAndKeywords(args, kwds, "i:is_const_po", kwlist, &iPoNum);
 
     Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
-    return Bool_FromLong( Abc_FrameCheckPoConst( pAbc, iPoNum ) );
+    return Int_FromLong( Abc_FrameCheckPoConst( pAbc, iPoNum ) );
 }
 
 ref<PyObject> create_abc_array(PyObject* seq)
