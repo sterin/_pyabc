@@ -28,7 +28,8 @@ int main(int argc, char *argv[])
     }
     catch(py::exception&)
     {
-        fprintf( stderr, "error: pyabc module not found. PYTHONPATH may not be set properly.\n");
+        fprintf( stderr, "error: could not load module pyabc:\n");
+        PyErr_Print();
     }
 
     return ABC_NAMESPACE_PREFIX Abc_RealMain(argc, argv);
