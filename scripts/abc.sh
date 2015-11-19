@@ -55,7 +55,7 @@ if [ "$1" = "--debug" ]; then
 fi
 
 if [ -f "${abc_root}/lib/super_prove/abc.rc" ] ; then
-    exec ${abc_debugger} "${abc_exe}" -s -q "source -s ${abc_root}/lib/super_prove/abc.rc" "$@"
+    exec ${abc_debugger} "${abc_exe}" -s -Q "source -s ${abc_root}/lib/super_prove/abc.rc" "$@"
 else
     exec ${abc_debugger} "${abc_exe}" -s "$@"
 fi
