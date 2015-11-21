@@ -31,7 +31,7 @@ public:
 
 private:
 
-    ABC_NAMESPACE_PREFIX Abc_Cex_t* _pCex;
+    Abc_Cex_t* _pCex;
 };
 
 ref<PyObject> cex_get_vector();
