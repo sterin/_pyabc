@@ -5,15 +5,7 @@
 #include <pywrapper_types.h>
 #include <pywrapper_thread.h>
 
-#ifdef ABC_NAMESPACE
-#  define ABC_NAMESPACE_HEADER_START namespace ABC_NAMESPACE {
-#  define ABC_NAMESPACE_HEADER_END }
-#  define ABC_NAMESPACE_PREFIX ABC_NAMESPACE::
-#else
-#  define ABC_NAMESPACE_HEADER_START
-#  define ABC_NAMESPACE_HEADER_END
-#  define ABC_NAMESPACE_PREFIX
-#endif
+#include <misc/util/abc_namespaces.h>
 
 namespace pyabc
 {
