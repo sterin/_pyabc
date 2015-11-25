@@ -411,6 +411,9 @@ class _splitter(object):
 
     def fork_one(self, f, *args, **kwargs):
 
+        sys.stdout.flush()
+        sys.stderr.flush()
+
         pr, pw = _pipe()
         _pyabc.atfork_child_add(pr)
 
