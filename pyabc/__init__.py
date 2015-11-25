@@ -5,3 +5,6 @@ import split
 
 import redirect
 from getch import getch
+
+def cex_put(cex):
+    cex.put()
