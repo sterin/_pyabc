@@ -142,11 +142,15 @@ void sys_init()
 
 } // namespace pyabc
 
-#include <misc/util/abc_global.h>
+#include <misc/util/abc_namespaces.h>
 
 ABC_NAMESPACE_HEADER_START
 
 int tmpFile(const char* prefix, const char* suffix, char** out_name);
+
+int Util_SignalSystem(const char* cmd);
+void Util_SignalTmpFileRemove(const char* fname, int fLeave);
+int Util_SignalTmpFile(const char* prefix, const char* suffix, char** out_name);
 
 ABC_NAMESPACE_HEADER_END
 
