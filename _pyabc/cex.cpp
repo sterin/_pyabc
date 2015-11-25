@@ -29,6 +29,7 @@ cex::initialize(PyObject* module)
         PYTHONWRAPPER_METH_NOARGS(cex, n_regs, 0, ""),
         PYTHONWRAPPER_METH_NOARGS(cex, po, 0, ""),
         PYTHONWRAPPER_METH_NOARGS(cex, frame, 0, ""),
+        PYTHONWRAPPER_METH_NOARGS(cex, put, 0, ""),
 
         { NULL }  // sentinel
     };
