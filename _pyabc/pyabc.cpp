@@ -150,7 +150,7 @@ ref<PyObject> is_valid_cex()
     Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
     Abc_Ntk_t * pNtk = Abc_FrameReadNtk(pAbc);
 
-    return Bool_FromLong( pNtk && Abc_FrameReadCex(pAbc) && Abc_NtkIsValidCex( pNtk, Abc_FrameReadCex(pAbc) ) );
+    return Bool_FromLong( pNtk && Abc_FrameReadCex(pAbc) && Abc_NtkIsValidCex( pNtk, static_cast<Abc_Cex_t_*>(Abc_FrameReadCex(pAbc)) ) );
 }
 
 ref<PyObject> is_true_cex()
@@ -158,7 +158,7 @@ ref<PyObject> is_true_cex()
     Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
     Abc_Ntk_t * pNtk = Abc_FrameReadNtk(pAbc);
 
-    return Bool_FromLong( pNtk && Abc_FrameReadCex(pAbc) && Abc_NtkIsTrueCex( pNtk, Abc_FrameReadCex(pAbc) ) );
+    return Bool_FromLong( pNtk && Abc_FrameReadCex(pAbc) && Abc_NtkIsTrueCex( pNtk, static_cast<Abc_Cex_t_*>(Abc_FrameReadCex(pAbc)) ) );
 }
 
 ref<PyObject> n_cex_pis()

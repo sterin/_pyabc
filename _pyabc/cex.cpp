@@ -108,7 +108,7 @@ ref<PyObject> cex_get_vector()
 ref<PyObject> cex_get()
 {
     Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
-    Abc_Cex_t* pCex = Abc_FrameReadCex(pAbc);
+    Abc_Cex_t* pCex = static_cast<Abc_Cex_t_*>(Abc_FrameReadCex(pAbc));
 
     if( ! pCex )
     {
