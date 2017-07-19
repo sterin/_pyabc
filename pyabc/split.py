@@ -369,8 +369,12 @@ class _splitter(object):
             # unpickle the return value
             try:
                 result = pickle.loads(buf.getvalue())
-            except EOFError, pickle.UnpicklingError:
+            except (EOFError, pickle.UnpicklingError, ValueError):
                 result = None
+            except:
+                import traceback
+                traceback.print_exc()
+                raise
 
         # stop tracking the process
         self.poll.unregister(fd)
