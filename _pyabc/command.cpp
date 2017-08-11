@@ -1,11 +1,31 @@
 #include "command.h"
 
 #include <base/main/main.h>
+#include <base/main/mainInt.h>
 
 #include <stdio.h>
 
 namespace pyabc
 {
+
+namespace
+{
+
+ref<PyObject> python_frame_done_callback{ py::None };
+
+void frame_done_callback(int frame, int po, int status)
+{
+    try
+    {
+        gil_state_ensure scope;
+        Object_CallFunction(python_frame_done_callback, "(iii)", frame, po, status);
+    }
+    catch(...)
+    {
+    }
+}
+
+} // unnamed namespace
 
 ref<PyObject> run_command(PyObject* arg)
 {
@@ -18,24 +38,33 @@ ref<PyObject> run_command(PyObject* arg)
 
         Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
 
-        rc = Cmd_CommandExecute(pAbc, cmd);
+        if( python_frame_done_callback && python_frame_done_callback != py::None )
+        {
+            auto old_callback = pAbc->pFuncOnFrameDone;
+            pAbc->pFuncOnFrameDone = frame_done_callback;
+            rc = Cmd_CommandExecute(pAbc, cmd);
+            pAbc->pFuncOnFrameDone = old_callback;
+        }
+        else
+        {
+            rc = Cmd_CommandExecute(pAbc, cmd);
+        }
     }
 
     return Int_FromLong(rc);
+}
+
+ref<PyObject> set_frame_done_callback( PyObject* callback )
+{
+    ref<PyObject> prev = python_frame_done_callback;
+    python_frame_done_callback = borrow(callback);
+    return prev;
 }
 
 namespace
 {
 
 ref<PyObject> python_command_callback;
-
-} // unnamed namespace
-
-
-void set_command_callback( PyObject* callback )
-{
-    python_command_callback = borrow(callback);
-}
 
 static int abc_command_callback(Abc_Frame_t * pAbc, int argc, char ** argv)
 {
@@ -59,6 +88,15 @@ static int abc_command_callback(Abc_Frame_t * pAbc, int argc, char ** argv)
         return -1;
     }
 }
+
+} // unnamed namespace
+
+
+void set_command_callback( PyObject* callback )
+{
+    python_command_callback = borrow(callback);
+}
+
 
 void register_command(PyObject* args, PyObject* kwds)
 {

@@ -361,6 +361,7 @@ init()
 
         PYTHONWRAPPER_FUNC_O(run_command, 0, ""),
         PYTHONWRAPPER_FUNC_O(set_command_callback, 0, ""),
+        PYTHONWRAPPER_FUNC_O(set_frame_done_callback, 0, ""),
         PYTHONWRAPPER_FUNC_KEYWORDS(register_command, 0, ""),
 
         PYTHONWRAPPER_FUNC_O(atfork_child_add, 0, "after a fork(), close fd in the child process"),
