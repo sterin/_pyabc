@@ -100,6 +100,7 @@ import traceback
 import sys
 import _pyabc
 
+
 def _eintr_retry_call(f, *args, **kwds):
     while True:
         try:
@@ -130,8 +131,10 @@ def _eintr_retry_nonblocking(f, *args, **kwds):
 def _set_non_blocking(fd):
     fcntl.fcntl( fd, fcntl.F_SETFL, fcntl.fcntl(fd, fcntl.F_GETFL) | os.O_NONBLOCK )
 
+
 def _set_close_on_exec(fd):
     fcntl.fcntl( fd, fcntl.F_SETFD, fcntl.fcntl(fd, fcntl.F_GETFD) | fcntl.FD_CLOEXEC )
+
 
 def _pipe():
 
@@ -144,87 +147,342 @@ def _pipe():
 
     return pr, pw
 
+
 class _unique_ids(object):
 
     def __init__(self):
 
         self.next_uid = 0
-        self.live = set()
 
-    def allocate(self, live=True):
+    def allocate(self):
 
         uid = self.next_uid
         self.next_uid += 1
-
-        if live:
-            self.live.add(uid)
-
         return uid
 
-    def remove(self, uid):
 
-        self.live.remove(uid)
+class base_handler(object):
 
-    def __len__(self):
+    def __init__(self, loop):
+        self.loop = loop
 
-        return len(self.live)
+    def on_data(self, fd, data):
+        pass
 
-if hasattr(select, "epoll"):
+    def on_ready(self, fd):
+        pass
 
-    class _poller(object):
+    def on_hangup(self, fd):
+        self.loop.unregister(fd)
 
-        def __init__(self):
+    def on_error(self, fd):
+        self.loop.unregister(fd)
 
-            self.epoll = select.epoll()
-            self.registered_fds = set()
 
-        def register(self, fd):
+class event_loop(object):
 
-            self.registered_fds.add(fd)
-            return self.epoll.register(fd, select.EPOLLIN)
+    def __init__(self):
 
-        def unregister(self, fd):
+        self.epoll = select.epoll()
+        self.fd_to_handler = {}
+        self.keep_alive_fds = set()
+        self.results = []
 
-            if fd in self.registered_fds:
+    def register(self, h, fd, eventmask = select.EPOLLIN | select.EPOLLOUT, keep_alive=True):
+        
+        assert fd not in self.fd_to_handler
+        self.fd_to_handler[fd] = h
 
-                self.epoll.unregister(fd)
-                self.registered_fds.remove(fd)
+        if keep_alive:
+            assert fd not in self.keep_alive_fds
+            self.keep_alive_fds.add(fd)
 
-        def poll(self):
+        self.epoll.register(fd, eventmask)
+
+    def unregister(self, fd):
+
+        assert fd in self.fd_to_handler
+        del self.fd_to_handler[fd]
+        self.keep_alive_fds.discard(fd)
+
+        self.epoll.unregister(fd)
+
+    def add_result(self, res):
+
+        if res is None:
+            traceback.print_exc(file=sys.stderr)
+
+
+        self.results.append( res )
+
+    def iter_results(self):
+
+        if self.results:
+
+            results = self.results
+            self.results = []
+
+            for res in results:
+                yield res
+
+    def poll(self):
+
+        for res in self.iter_results():
+            yield res
+
+        while self.keep_alive_fds:
 
             for fd, event in _eintr_retry_call( self.epoll.poll ):
 
+                assert fd in self.fd_to_handler
+                h = self.fd_to_handler[fd]
+
+                if event & select.EPOLLIN:
+                    data = _eintr_retry_nonblocking(os.read, fd, 1 << 16)
+                    if data:
+                        h.on_data(fd, data)
+
+                if event & select.EPOLLOUT:
+                    h.on_ready(fd)
+
                 if event & select.EPOLLHUP:
-                    if fd in self.registered_fds:
-                        self.epoll.unregister(fd)
-                        self.registered_fds.remove(fd)
+                    h.on_hangup(fd)
 
-                if event != select.EPOLLHUP:
-                    yield fd
+                if event & select.EPOLLERR:
+                    h.on_error(fd)
 
-        def close(self):
+            for res in self.iter_results():
+                yield res
 
-            self.epoll.close()
-else:
+    def close(self):
 
-    class _poller(object):
+        self.epoll.close()
 
-        def __init__(self):
-            self.registered_fds = set()
 
-        def register(self, fd):
-            self.registered_fds.add(fd)
+class signal_event_handler(base_handler):
 
-        def unregister(self, fd):
-            if fd in self.registered_fds:
-                self.registered_fds.remove(fd)
+    def __init__(self, loop):
 
-        def poll(self):
-            rlist, _, _ = _eintr_retry_call( select.select, self.registered_fds, [], self.registered_fds )
-            return rlist
+        super(signal_event_handler, self).__init__(loop)
 
-        def close(self):
-            pass
+        self.sig_fd_read, self.sig_fd_write = _pipe()
+
+        _pyabc.atfork_child_add(self.sig_fd_read)
+        _pyabc.atfork_child_add(self.sig_fd_write)
+
+        self._install_signal_handler(self.sig_fd_write)
+        self.registered = False
+
+    def register(self, keep_alive=True):
+        
+        if not self.registered:
+            self.loop.register(self, self.sig_fd_read, select.EPOLLIN, keep_alive)
+            self.registered = True
+
+    def unregister(self):
+        
+        if self.registered:
+            self.loop.unregister(self.sig_fd_read)
+            self.registered = False
+
+    def stop(self):
+        
+        self._uninstall_signal_handler(self.sig_fd_write)
+
+        self.unregister()
+        self.loop = None
+
+        _pyabc.atfork_child_remove(self.sig_fd_read)
+        os.close(self.sig_fd_read)
+
+        _pyabc.atfork_child_remove(self.sig_fd_write)
+        os.close(self.sig_fd_write)
+
+
+class timer_manager(signal_event_handler):
+
+    def __init__(self, loop):
+
+        super(timer_manager, self).__init__(loop)
+        self.timers = []
+
+    def _install_signal_handler(self, fd):
+
+        def callback(*args):
+            _eintr_retry_call(os.write, fd, "X" )
+        self.old_signal = signal.signal(signal.SIGALRM, callback)
+
+    def _uninstall_signal_handler(self, fd):
+
+        signal.signal(signal.SIGALRM, self.old_signal)
+
+    def stop(self):
+
+        self.timers = []
+        super(timer_manager, self).stop()
+
+    def add_timer(self, timeout, token):
+
+        now = time.time()
+        heapq.heappush( self.timers, (now+timeout, token) )
+        self._reap_timers(now)
+
+    def _reap_timers(self, now):
+
+        while self.timers and self.timers[0][0] <= now:
+            _, token = heapq.heappop(self.timers)
+            self.loop.add_result( token )
+
+        if self.timers:
+            signal.setitimer(signal.ITIMER_REAL, self.timers[0][0] - now)
+            self.register(keep_alive=False)
+        else:
+            self.unregister()
+
+    def on_data(self, fd, data):
+        self._reap_timers(time.time())
+
+
+class process_manager(signal_event_handler):
+
+    def __init__(self, loop):
+
+        super(process_manager, self).__init__(loop)
+        self.pid_to_handler = {}
+
+    def _install_signal_handler(self, fd):
+        _pyabc.add_sigchld_fd(fd);
+
+    def _uninstall_signal_handler(seld):
+        _pyabc.remove_sigchld_fd(fd)
+
+    def kill_all(self):
+        
+        for pid, h in self.pid_to_handler.iteritems():
+            h.kill()
+    
+    def clean(self):
+
+        super(process_manager, self).stop()
+
+    def fork(self, h):
+
+        h.on_fork(self)
+
+        ppid = os.getpid()
+        rc = 1
+
+        try:
+            pid = os.fork()
+            if pid == 0:
+                rc = h.on_child()
+                os._exit(rc)
+            else:
+                self.register()
+                self.pid_to_handler[pid] = h
+                h.on_parent(pid)
+                return h
+        finally:
+            if os.getpid() != ppid:
+                os._exit(rc)
+
+
+    def _reap(self):
+
+        for pid, h in self.pid_to_handler.items():
+            rc, status = _eintr_retry_call( os.waitpid, pid, os.WNOHANG )
+            if rc > 0:
+                del self.pid_to_handler[pid]
+                if not self.pid_to_handler:
+                    self.unregister()
+                h.on_waitpid(status)
+
+
+    def on_data(self, fd, data):
+        self._reap()
+
+
+class process_handler(base_handler):
+
+    def __init__(self, loop, f, token):
+
+        super(process_handler, self).__init__(loop)
+        self.buf = cStringIO.StringIO()
+        
+        self.f = f
+        self.token = token
+        self.pid = None
+        self.done_reading = False
+        self.done_waiting = False
+
+    def on_fork(self, pm):
+
+        sys.stdout.flush()
+        sys.stderr.flush()
+
+        self.pr, self.pw = _pipe()
+        _pyabc.atfork_child_add(self.pr)
+
+    def on_parent(self, pid):
+
+        os.close(self.pw)
+        self.pid = pid
+        self.pw = None
+        self.f = None
+        self.loop.register(self, self.pr)
+
+    def on_child(self):
+
+        _pyabc.atfork_child_add(self.pw)
+        try:
+            res = self.f()
+            with os.fdopen(self.pw, "w") as fout:
+                pickle.dump(res, fout)
+        except:
+            traceback.print_exc(file=sys.stderr)
+            raise
+        return 0
+
+    def on_data(self, fd, data):
+
+        assert fd == self.pr
+        self.buf.write(data)
+    
+    def on_hangup(self, fd):
+
+        assert fd == self.pr
+        self.loop.unregister(fd)
+        _pyabc.atfork_child_remove(fd)
+        os.close(fd)
+        self.pr = None
+
+        self.done_reading = True
+        self.on_done()
+
+    def on_waitpid(self, status):
+
+        self.done_waiting = True
+        self.on_done()
+
+    def on_done(self):
+
+        if not self.done_reading or not self.done_waiting:
+            return
+
+        try:
+            result = pickle.loads(self.buf.getvalue())
+        except (EOFError, pickle.UnpicklingError, ValueError):
+            result = None
+        except:
+            import traceback
+            traceback.print_exc()
+            raise        
+
+        self.loop.add_result((self.token, result))
+
+    def kill(self):
+
+        os.kill(self.pid, signal.SIGQUIT)
 
 
 class _splitter(object):
@@ -232,258 +490,70 @@ class _splitter(object):
     def __init__(self):
 
         self.uids = _unique_ids()
+        self.uid_to_handler = {}
+        self.handler_to_uid = {}
 
-        self.pid_to_uid = {}
-        self.uid_to_pid = {}
-
-        self.uid_to_fd = {}
-        self.fd_to_uid = {}
-
-        self.uid_to_buf = {}
-        self.fd_to_buf = {}
-
-        p = _pipe()
-
-        self.sigchld_fd = p[0]
-        self.sigchld_fd_write = p[1]
-
-        _pyabc.atfork_child_add(self.sigchld_fd)
-        _pyabc.atfork_child_add(self.sigchld_fd_write)
-
-        _pyabc.add_sigchld_fd(self.sigchld_fd_write);
-
-        self.poll = _poller()
-        self.poll.register(self.sigchld_fd)
-
-        self.timers = []
-        self.expired_timers = collections.deque()
-
-        signal.signal(signal.SIGALRM, self._timer_callback)
+        self.loop = event_loop()
+        self.timers = timer_manager(self.loop)
+        self.procs = process_manager(self.loop)
 
     def add_timer(self, timeout):
 
-        uid = self.uids.allocate(live=False)
-        now = time.time()
-
-        heapq.heappush( self.timers, (now+timeout, uid) )
-
-        self._reap_timers(now)
-
-        return uid
-
-    def _reap_timers(self, now, notify=False):
-
-        while self.timers and self.timers[0][0] <= now:
-
-            t, uid = heapq.heappop(self.timers)
-            self.expired_timers.append(uid)
-
-        if notify and self.expired_timers:
-
-            self._timer_callback()
-
-        if self.timers:
-
-            signal.setitimer(signal.ITIMER_REAL, self.timers[0][0] - now)
-
-    def _timer_callback(self, *args):
-        _eintr_retry_call(os.write, self.sigchld_fd_write, "T" )
-
-    def cleanup(self):
-
-        # kill all remaining child process
-        for pid, uid in self.pid_to_uid.iteritems():
-            os.kill(pid, signal.SIGQUIT)
-
-        # reap kill child processes
-        for _ in self.results():
-            pass
-
-        self.poll.close()
-
-        _pyabc.atfork_child_remove(self.sigchld_fd)
-        os.close(self.sigchld_fd)
-
-        _pyabc.atfork_child_remove(self.sigchld_fd_write)
-        _pyabc.remove_sigchld_fd(self.sigchld_fd_write)
-        os.close(self.sigchld_fd_write)
-
-
-    def _start_monitoring(self, pid, fd):
-
-        self.poll.register(fd)
-
         uid = self.uids.allocate()
-
-        self.pid_to_uid[pid] = uid
-        self.uid_to_pid[uid] = pid
-
-        self.uid_to_fd[uid] = fd
-        self.fd_to_uid[fd] = uid
-
-        buf = cStringIO.StringIO()
-
-        self.uid_to_buf[uid] = buf
-        self.fd_to_buf[fd] = buf
-
+        self.timers.add_timer(timeout, (uid, None))
         return uid
-
-    def _read_by_fd(self, fd):
-
-        data = _eintr_retry_nonblocking(os.read, fd, 16384)
-
-        if data:
-            buf = self.fd_to_buf[fd]
-            buf.write(data)
-        else:
-            self.poll.unregister(fd)
-
-    def kill(self, uid):
-
-        pid = self.uid_to_pid[uid]
-        os.kill(pid, signal.SIGQUIT)
-
-    def _reap(self):
-
-        for pid, uid in self.pid_to_uid.items():
-
-            rc, status = _eintr_retry_call( os.waitpid, pid, os.WNOHANG )
-
-            if rc > 0:
-
-                yield self._reap_one(pid, status)
-
-    def _reap_one(self, pid, status):
-
-        uid = self.pid_to_uid[pid]
-        fd = self.uid_to_fd[uid]
-        buf = self.uid_to_buf[uid]
-
-        # collect the output of the process
-        self._read_by_fd(fd)
-
-        result = None
-
-        if os.WIFEXITED(status):
-
-            # unpickle the return value
-            try:
-                result = pickle.loads(buf.getvalue())
-            except (EOFError, pickle.UnpicklingError, ValueError):
-                result = None
-            except:
-                import traceback
-                traceback.print_exc()
-                raise
-
-        # stop tracking the process
-        self.poll.unregister(fd)
-
-        # close pipe
-        os.close(fd)
-
-        # pipe is closed, no need to close it on child processes
-        _pyabc.atfork_child_remove(fd)
-
-        self.uids.remove(uid)
-
-        del self.pid_to_uid[pid]
-        del self.uid_to_pid[uid]
-
-        del self.uid_to_fd[uid]
-        del self.fd_to_uid[fd]
-
-        del self.uid_to_buf[uid]
-        del self.fd_to_buf[fd]
-
-        return uid, result
-
-    def _child( self, fd, f, args, kwargs):
-
-        try:
-
-            res = f(*args, **kwargs)
-
-            with os.fdopen(fd, "w") as fout:
-                pickle.dump(res, fout)
-
-        except:
-            traceback.print_exc(file=sys.stderr)
-            raise
-
-        return 0
 
     def fork_one(self, f, *args, **kwargs):
 
-        sys.stdout.flush()
-        sys.stderr.flush()
+        uid = self.uids.allocate()
 
-        pr, pw = _pipe()
-        _pyabc.atfork_child_add(pr)
+        def child():
+            return f(*args, **kwargs)
 
-        ppid = os.getpid()
-        rc = 1
+        h = process_handler(self.loop, child, uid)
+        self.procs.fork(h)
 
-        try:
+        self.uid_to_handler[uid] = h
+        self.handler_to_uid[h] = uid
 
-            pid = os.fork()
-
-            if pid == 0:
-
-                _pyabc.atfork_child_add(pw)
-
-                rc = self._child(pw, f, args, kwargs)
-
-                os._exit(rc)
-
-            else:
-
-                os.close(pw)
-
-                return self._start_monitoring(pid, pr)
-
-        finally:
-
-            if os.getpid() != ppid:
-                os._exit(rc)
+        return uid
 
     def fork_all(self, funcs):
+
         return [ self.fork_one(f) for f in funcs ]
+
+    def kill(self, uid):
+        
+        if uid in self.uid_to_handler:
+            self.uid_to_handler[uid].kill()
+
+    def cleanup(self):
+        
+        for uid, h in self.uid_to_handler.iteritems():
+            h.kill()
+
+        for _ in self.results():
+            pass
 
     def results(self):
 
-        while self.uids:
+        for uid, res in self.loop.poll():
 
-            events = list(self.poll.poll())
+            if uid in self.uid_to_handler:
 
-            for fd in events:
+                h = self.uid_to_handler[uid]
 
-                if fd != self.sigchld_fd:
+                del self.uid_to_handler[uid]
+                del self.handler_to_uid[h]
 
-                    self._read_by_fd(fd)
-
-            for fd in events:
-
-                if fd == self.sigchld_fd:
-
-                        ch = _eintr_retry_nonblocking(os.read, self.sigchld_fd, 1)
-
-                        if ch == 'T':
-
-                            self._reap_timers(time.time())
-
-                            for uid in self.expired_timers:
-                                yield uid, None
-
-                            self.expired_timers.clear()
-
-                        for rc in self._reap():
-                            yield rc
+            yield uid, res
 
     def __iter__(self):
+
         def iterator():
             for res in self.results():
                 yield res
+                
         return iterator()
 
 
@@ -516,14 +586,18 @@ def split_all_full(funcs, timeout=None):
 
             yield uid, res
 
+
 def defer(f):
     return lambda *args, **kwargs: lambda : f(*args,**kwargs)
+
 
 def split_all(funcs, *args, **kwargs):
     for _, res in split_all_full( ( defer(f)(*fargs) for f,fargs in funcs ), *args, **kwargs ):
         yield res
 
+
 import tempfile
+
 
 @contextmanager
 def temp_file_names(suffixes):
@@ -536,6 +610,7 @@ def temp_file_names(suffixes):
     finally:
         for name in names:
             os.unlink(name)
+
 
 class abc_state(object):
     def __init__(self):
@@ -553,6 +628,7 @@ class abc_state(object):
     def restore(self):
         pyabc.run_command(r'read_aiger %s'%self.aig)
         pyabc.run_command(r'read_status %s'%self.log)
+
 
 def abc_split_all(funcs):
     import pyabc
@@ -574,6 +650,7 @@ def abc_split_all(funcs):
 
         for i, res in split_all_full(funcs):
             yield i, parent(res, tmp[2*i],tmp[2*i+1])
+
 
 if __name__ == "__main__":
 
