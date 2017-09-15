@@ -178,6 +178,9 @@ class base_handler(object):
     def on_error(self, fd):
         self.loop.unregister(fd)
 
+    def kill(self):
+        pass
+
 
 class event_loop(object):
 
@@ -404,13 +407,13 @@ class process_manager(signal_event_handler):
 
 class process_handler(base_handler):
 
-    def __init__(self, loop, f, token):
+    def __init__(self, loop, f):
 
         super(process_handler, self).__init__(loop)
         self.buf = cStringIO.StringIO()
         
         self.f = f
-        self.token = token
+        self.token = None
         self.pid = None
         self.done_reading = False
         self.done_waiting = False
@@ -505,12 +508,17 @@ class _splitter(object):
 
     def fork_one(self, f, *args, **kwargs):
 
-        uid = self.uids.allocate()
-
         def child():
             return f(*args, **kwargs)
 
-        h = process_handler(self.loop, child, uid)
+        return self.fork_handler( process_handler(self.loop, child) )
+
+
+    def fork_handler(self, h):
+
+        uid = self.uids.allocate()
+        h.token = uid
+
         self.procs.fork(h)
 
         self.uid_to_handler[uid] = h
