@@ -81,6 +81,7 @@ To run ABC operations, that required saving the child process state and restorin
 Author: Baruch Sterin <sterin@berkeley.edu>
 """
 
+import re
 import os
 import fcntl
 import errno
@@ -136,11 +137,15 @@ def _set_close_on_exec(fd):
     fcntl.fcntl( fd, fcntl.F_SETFD, fcntl.fcntl(fd, fcntl.F_GETFD) | fcntl.FD_CLOEXEC )
 
 
-def _pipe():
+def _pipe(blocking_read=True, blocking_write=True):
 
     pr, pw = os.pipe()
 
-    _set_non_blocking(pr)
+    if not blocking_read:
+        _set_non_blocking(pr)
+
+    if not blocking_write:
+        _set_non_blocking(pw)
 
     _set_close_on_exec(pr)
     _set_close_on_exec(pw)
@@ -215,7 +220,6 @@ class event_loop(object):
         if res is None:
             traceback.print_exc(file=sys.stderr)
 
-
         self.results.append( res )
 
     def iter_results(self):
@@ -268,7 +272,7 @@ class signal_event_handler(base_handler):
 
         super(signal_event_handler, self).__init__(loop)
 
-        self.sig_fd_read, self.sig_fd_write = _pipe()
+        self.sig_fd_read, self.sig_fd_write = _pipe(blocking_read=False)
 
         _pyabc.atfork_child_add(self.sig_fd_read)
         _pyabc.atfork_child_add(self.sig_fd_write)
@@ -405,11 +409,11 @@ class process_manager(signal_event_handler):
         self._reap()
 
 
-class process_handler(base_handler):
+class forked_process_handler(base_handler):
 
     def __init__(self, loop, f):
 
-        super(process_handler, self).__init__(loop)
+        super(forked_process_handler, self).__init__(loop)
         self.buf = cStringIO.StringIO()
         
         self.f = f
@@ -423,16 +427,19 @@ class process_handler(base_handler):
         sys.stdout.flush()
         sys.stderr.flush()
 
-        self.pr, self.pw = _pipe()
+        self.pr, self.pw = _pipe(blocking_read=False)
         _pyabc.atfork_child_add(self.pr)
 
     def on_parent(self, pid):
+        
+        self.f = None
 
         os.close(self.pw)
         self.pid = pid
         self.pw = None
-        self.f = None
+
         self.loop.register(self, self.pr)
+        _pyabc.atfork_child_add(self.pr)
 
     def on_child(self):
 
@@ -464,6 +471,7 @@ class process_handler(base_handler):
 
     def on_waitpid(self, status):
 
+        self.pid = None
         self.done_waiting = True
         self.on_done()
 
@@ -485,8 +493,8 @@ class process_handler(base_handler):
 
     def kill(self):
 
-        os.kill(self.pid, signal.SIGQUIT)
-
+        if self.pid is not None:
+            os.kill(self.pid, signal.SIGQUIT)
 
 class _splitter(object):
 
@@ -511,8 +519,7 @@ class _splitter(object):
         def child():
             return f(*args, **kwargs)
 
-        return self.fork_handler( process_handler(self.loop, child) )
-
+        return self.fork_handler( forked_process_handler(self.loop, child) )
 
     def fork_handler(self, h):
 
@@ -574,6 +581,152 @@ def make_splitter(*args, **kwargs):
         yield s
     finally:
         s.cleanup()
+
+
+class base_redirect_handler(base_handler):
+
+    def __init__(self, loop, f):
+
+        super(base_redirect_handler, self).__init__(loop)
+
+        self.f = f
+        
+        self.token = None
+        self.pid = None
+        self.status = None
+
+        self.done_reading = False
+        self.done_writing = False
+        self.done_waiting = False
+
+    def on_fork(self, pm):
+
+        sys.stderr.flush()
+        self.stdin_read, self.stdin_write = _pipe(blocking_write=False)
+        _pyabc.atfork_child_add(self.stdin_write)
+
+        sys.stdout.flush()
+        self.stdout_read, self.stdout_write = _pipe(blocking_read=False)
+        _pyabc.atfork_child_add(self.stdout_read)
+
+    def on_start(self):
+        pass
+
+    def on_parent(self, pid):
+
+        os.close(self.stdout_write)
+        self.stdout_write = None
+
+        os.close(self.stdin_read)
+        self.stdin_read = None
+        self.stdin_buf = collections.deque()
+        self.should_close_stdin = False
+
+        self.pid = pid
+        self.path = None
+        self.args = None
+
+        # self.loop.register(self, self.stdin_write)
+        _pyabc.atfork_child_add(self.stdin_write)
+
+        self.loop.register(self, self.stdout_read)
+        _pyabc.atfork_child_add(self.stdout_read)
+
+        self.on_start()
+
+    def on_child(self):
+
+        os.close(sys.stdout.fileno())
+        os.dup2(self.stdout_write, sys.stdout.fileno())
+
+        os.close(sys.stdin.fileno())
+        os.dup2(self.stdin_read, sys.stdin.fileno())
+
+        return self.f()
+
+    def on_ready(self, fd):
+        
+        assert fd == self.stdin_write
+
+        while self.stdin_buf:
+
+            data = self.stdin_buf[0]
+            rc = _eintr_retry_nonblocking(os.write, fd, data)
+
+            if rc is None:
+                return
+            elif rc < len(data):
+                self.stdin_buf[0] = data[rc:]
+                return
+
+            self.stdin_buf.popleft()
+
+        self.loop.unregister(fd)
+        
+        if self.should_close_stdin:
+            self.close_stdin()
+
+    def write_stdin(self, data):
+
+        if data and not self.stdin_buf:
+            self.loop.register(self, self.stdin_write)
+
+        self.stdin_buf.append(data)
+
+    def close_stdin(self):
+
+        if self.stdin_buf:
+            self.should_close_stdin = True
+            return
+
+        _pyabc.atfork_child_remove(self.stdin_write)
+        os.close( self.stdin_write )
+        self.done_writing = True
+
+    def on_hangup(self, fd):
+
+        assert fd == self.stdout_read or fd == self.stdin_write
+        
+        self.loop.unregister(fd)
+        _pyabc.atfork_child_remove(fd)
+        os.close(fd)
+
+        if fd == self.stdout_read:
+            self.done_reading = True
+            self.stdout_read = None
+
+        if fd == self.stdin_write:
+            self.done_writing = True
+            self.stdin_write = None
+
+        self.on_done()            
+
+    def on_waitpid(self, status):
+
+        self.done_waiting = True
+        self.status = status
+        self.pid = None
+        
+        self.on_done()
+
+    def on_done(self):
+
+        if not self.done_reading:
+            return
+
+        if not self.done_waiting:
+            return
+
+        if not self.done_writing:
+            self.stdin_buf = None
+            self.close_stdin()
+
+        self.loop.add_result((self.token, self.status))
+
+    def kill(self):
+
+        if self.pid is not None:
+            os.kill(self.pid, signal.SIGQUIT)
 
 
 def split_all_full(funcs, timeout=None):
