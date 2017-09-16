@@ -219,8 +219,8 @@ class event_loop(object):
 
         if res is None:
             traceback.print_exc(file=sys.stderr)
-
-        self.results.append( res )
+        else:
+            self.results.append( res )
 
     def iter_results(self):
 
@@ -724,7 +724,7 @@ class base_redirect_handler(base_handler):
         self.loop.add_result((self.token, True, self.status))
 
     def kill(self):
-        
+
         if self.pid is not None:
             os.kill(self.pid, signal.SIGQUIT)
 
