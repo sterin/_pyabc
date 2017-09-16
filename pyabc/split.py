@@ -102,7 +102,7 @@ import sys
 import _pyabc
 
 
-def _eintr_retry_call(f, *args, **kwds):
+def eintr_retry_call(f, *args, **kwds):
     while True:
         try:
             return f(*args, **kwds)
@@ -114,7 +114,7 @@ def _eintr_retry_call(f, *args, **kwds):
                 raise e
 
 
-def _eintr_retry_nonblocking(f, *args, **kwds):
+def eintr_retry_nonblocking(f, *args, **kwds):
     while True:
         try:
             return f(*args, **kwds)
@@ -239,13 +239,13 @@ class event_loop(object):
 
         while self.keep_alive_fds:
 
-            for fd, event in _eintr_retry_call( self.epoll.poll ):
+            for fd, event in eintr_retry_call( self.epoll.poll ):
 
                 assert fd in self.fd_to_handler
                 h = self.fd_to_handler[fd]
 
                 if event & select.EPOLLIN:
-                    data = _eintr_retry_nonblocking(os.read, fd, 1 << 16)
+                    data = eintr_retry_nonblocking(os.read, fd, 1 << 16)
                     if data:
                         h.on_data(fd, data)
 
@@ -316,7 +316,7 @@ class timer_manager(signal_event_handler):
     def _install_signal_handler(self, fd):
 
         def callback(*args):
-            _eintr_retry_call(os.write, fd, "X" )
+            eintr_retry_call(os.write, fd, "X" )
         self.old_signal = signal.signal(signal.SIGALRM, callback)
 
     def _uninstall_signal_handler(self, fd):
@@ -397,7 +397,7 @@ class process_manager(signal_event_handler):
     def _reap(self):
 
         for pid, h in self.pid_to_handler.items():
-            rc, status = _eintr_retry_call( os.waitpid, pid, os.WNOHANG )
+            rc, status = eintr_retry_call( os.waitpid, pid, os.WNOHANG )
             if rc > 0:
                 del self.pid_to_handler[pid]
                 if not self.pid_to_handler:
@@ -489,7 +489,7 @@ class forked_process_handler(base_handler):
             traceback.print_exc()
             raise        
 
-        self.loop.add_result((self.token, result))
+        self.loop.add_result((self.token, True, result))
 
     def kill(self):
 
@@ -511,7 +511,7 @@ class _splitter(object):
     def add_timer(self, timeout):
 
         uid = self.uids.allocate()
-        self.timers.add_timer(timeout, (uid, None))
+        self.timers.add_timer(timeout, (uid, False, None))
         return uid
 
     def fork_one(self, f, *args, **kwargs):
@@ -543,7 +543,7 @@ class _splitter(object):
             self.uid_to_handler[uid].kill()
 
     def cleanup(self):
-        
+
         for uid, h in self.uid_to_handler.iteritems():
             h.kill()
 
@@ -552,9 +552,9 @@ class _splitter(object):
 
     def results(self):
 
-        for uid, res in self.loop.poll():
+        for uid, done, res in self.loop.poll():
 
-            if uid in self.uid_to_handler:
+            if done and uid in self.uid_to_handler:
 
                 h = self.uid_to_handler[uid]
 
@@ -651,7 +651,7 @@ class base_redirect_handler(base_handler):
         while self.stdin_buf:
 
             data = self.stdin_buf[0]
-            rc = _eintr_retry_nonblocking(os.write, fd, data)
+            rc = eintr_retry_nonblocking(os.write, fd, data)
 
             if rc is None:
                 return
@@ -721,10 +721,10 @@ class base_redirect_handler(base_handler):
             self.stdin_buf = None
             self.close_stdin()
 
-        self.loop.add_result((self.token, self.status))
+        self.loop.add_result((self.token, True, self.status))
 
     def kill(self):
-
+        
         if self.pid is not None:
             os.kill(self.pid, signal.SIGQUIT)
 
