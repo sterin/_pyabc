@@ -1,19 +1,14 @@
-#ifndef pyabc_sys__H
-#define pyabc_sys__H
-
-#include "pyabc.h"
+#pragma once
 
 namespace pyabc
 {
 
-void atfork_child_add(PyObject *pyfd);
-void atfork_child_remove(PyObject* pyfd);
+void atfork_child_add(int fd);
+void atfork_child_remove(int fd);
 
-void add_sigchld_fd(PyObject *pyfd);
-void remove_sigchld_fd(PyObject *pyfd);
+void add_sigchld_fd(int fd);
+void remove_sigchld_fd(int fd);
 
 void sys_init();
 
 } // namespace pyabc
-
-#endif // ifndef pyabc_sys__H

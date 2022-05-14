@@ -81,6 +81,8 @@ To run ABC operations, that required saving the child process state and restorin
 Author: Baruch Sterin <sterin@berkeley.edu>
 """
 
+from __future__ import print_function    # (at top of module)
+
 import re
 import os
 import fcntl
@@ -93,7 +95,7 @@ import collections
 
 from contextlib import contextmanager
 
-import cStringIO
+from io import StringIO
 import pickle
 
 import traceback
@@ -106,9 +108,6 @@ def eintr_retry_call(f, *args, **kwds):
     while True:
         try:
             return f(*args, **kwds)
-        except select.error as (e, msg):
-            if e != errno.EINTR:
-                raise
         except (OSError, IOError) as e:
             if e.errno != errno.EINTR:
                 raise e
@@ -124,9 +123,6 @@ def eintr_retry_nonblocking(f, *args, **kwds):
             if e.errno in (errno.EAGAIN, errno.EWOULDBLOCK):
                 return None
             raise
-        except select.error as (e, msg):
-            if e != errno.EINTR:
-                raise
 
 
 def _set_non_blocking(fd):
@@ -414,7 +410,7 @@ class forked_process_handler(base_handler):
     def __init__(self, loop, f):
 
         super(forked_process_handler, self).__init__(loop)
-        self.buf = cStringIO.StringIO()
+        self.buf = StringIO.StringIO()
         
         self.f = f
         self.token = None
@@ -843,12 +839,12 @@ if __name__ == "__main__":
     # Use the function split_all() to run these functions in separate processes:
 
     for res in split_all(funcs, timeout=4):
-        print res
+        print(res)
 
     # Alternatively, quit after the first process returns:
 
     for res in split_all(funcs):
-        print res
+        print(res)
         break
 
     # For operations with ABC that save and restore status
@@ -857,7 +853,7 @@ if __name__ == "__main__":
 
     def abc_f(truth):
         import os
-        print "pid=%d, abc_f(%s)"%(os.getpid(), truth)
+        print("pid=%d, abc_f(%s)"%(os.getpid(), truth))
         pyabc.run_command('read_truth %s'%truth)
         pyabc.run_command('strash')
         return 100
@@ -870,7 +866,7 @@ if __name__ == "__main__":
     best = None
 
     for i, res in abc_split_all(funcs):
-        print i, res
+        print(i, res)
         if best is None:\
             # save state
             best = abc_state()

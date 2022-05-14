@@ -39,30 +39,6 @@ void sigquit_handler(int sig)
     _exit(1);
 }
 
-void add_sigchld_fd(int fd)
-{
-    block_signals_scope scope{SIGCHLD};
-
-    if ( sigchld_wakeup_fds.empty() )
-    {
-        install_signal_handler({SIGCHLD}, sigchld_handler);
-    }
-
-    sigchld_wakeup_fds.insert(fd);
-}
-
-void remove_sigchld_fd(int fd)
-{
-    block_signals_scope scope{SIGCHLD};
-
-    sigchld_wakeup_fds.erase(fd);
-
-    if ( sigchld_wakeup_fds.empty() )
-    {
-        uninstall_signal_handler({SIGCHLD});
-    }
-}
-
 sigset_t pre_fork_sigprocmask;
 
 void atfork_prepare_handler()
@@ -105,28 +81,38 @@ void atfork_child_handler()
 
 } // namespace
 
-void atfork_child_add(PyObject* pyfd)
+void atfork_child_add(int fd)
 {
-    int fd = Int_AsLong(pyfd);
     child_fds.insert(fd);
 }
 
-void atfork_child_remove(PyObject* pyfd)
+void atfork_child_remove(int fd)
 {
-    int fd = Int_AsLong(pyfd);
     child_fds.erase(fd);
 }
 
-void add_sigchld_fd(PyObject* pyfd)
+void add_sigchld_fd(int fd)
 {
-    int fd = Int_AsLong(pyfd);
-    add_sigchld_fd(fd);
+    block_signals_scope scope{SIGCHLD};
+
+    if ( sigchld_wakeup_fds.empty() )
+    {
+        install_signal_handler({SIGCHLD}, sigchld_handler);
+    }
+
+    sigchld_wakeup_fds.insert(fd);
 }
 
-void remove_sigchld_fd(PyObject* pyfd)
+void remove_sigchld_fd(int fd)
 {
-    int fd = Int_AsLong(pyfd);
-    remove_sigchld_fd(fd);
+    block_signals_scope scope{SIGCHLD};
+
+    sigchld_wakeup_fds.erase(fd);
+
+    if ( sigchld_wakeup_fds.empty() )
+    {
+        uninstall_signal_handler({SIGCHLD});
+    }
 }
 
 void sys_init()

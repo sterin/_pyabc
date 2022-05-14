@@ -1,10 +1,10 @@
 from _pyabc import *
 
-from commands import add_abc_command
-import split
+from .commands import add_abc_command
+# from . import split
 
-import redirect
-from getch import getch
+from . import redirect
+from .getch import getch
 
 def cex_put(cex):
     cex.put()

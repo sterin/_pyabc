@@ -1,4 +1,4 @@
-#include "pyabc.h"
+#include <pybind11/embed.h>
 
 #include <misc/util/abc_global.h>
 
@@ -8,28 +8,22 @@ int Abc_RealMain(int argc, char *argv[]);
 
 ABC_NAMESPACE_HEADER_END
 
-namespace pyzz
-{
-void zz_init();
-}
+namespace py = pybind11;
 
 int main(int argc, char *argv[])
 {
     Py_NoSiteFlag = 1;
 
-    PyImport_AppendInittab("_pyabc", pyabc::init);
-    PyImport_AppendInittab("_pyzz", pyzz::zz_init);
-
-    py::initialize interpreter(argv[0]);
+    py::scoped_interpreter guard;
 
     try
     {
-        py::Import_ImportModule("pyabc");
+        py::module_::import("pyabc");
     }
-    catch(py::exception&)
+    catch (py::error_already_set &e)
     {
-        fprintf( stderr, "error: could not load module pyabc:\n");
-        PyErr_Print();
+        fprintf(stderr, "error: could not load module pyabc:\n");
+        fprintf(stderr, "%s\n", e.what());
     }
 
     return ABC_NAMESPACE_PREFIX Abc_RealMain(argc, argv);

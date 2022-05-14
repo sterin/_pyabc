@@ -1,387 +1,585 @@
-#include "pyabc.h"
-
-#include "command.h"
-#include "util.h"
-#include "cex.h"
-#include "sys.h"
-
-#include <signal.h>
+#include <pybind11/stl.h>
+#include <pybind11/pybind11.h>
 
 #include <base/main/main.h>
+#include <base/main/mainInt.h>
+
+#include "sys.h"
+
+#include <iostream>
+
+namespace py = pybind11;
 
 namespace pyabc
 {
 
-using namespace py;
-
-ref<PyObject> VecInt_To_PyList(Vec_Int_t* v)
-{
-    ref<PyObject> pylist = List_New(Vec_IntSize(v));
-
-    int elem, i;
-    Vec_IntForEachEntry( v, elem, i)
-    {
-        List_SetItem(pylist, i, Int_FromLong(elem));
-    }
-
-    return pylist;
-}
-
-ref<PyObject> n_ands()
+int n_ands()
 {
     Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
     Abc_Ntk_t * pNtk = Abc_FrameReadNtk(pAbc);
 
     if ( pNtk && Abc_NtkIsStrash(pNtk) )
     {
-        return Int_FromLong(Abc_NtkNodeNum(pNtk));
+        return Abc_NtkNodeNum(pNtk);
     }
 
-    return Int_FromLong(-1);
+    return -1;
 }
 
-ref<PyObject> n_nodes()
+int n_nodes()
 {
     Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
     Abc_Ntk_t * pNtk = Abc_FrameReadNtk(pAbc);
 
     if ( pNtk )
     {
-        return Int_FromLong(Abc_NtkNodeNum(pNtk));
+        return Abc_NtkNodeNum(pNtk);
     }
 
-    return Int_FromLong(-1);
+    return -1;
 }
 
-ref<PyObject> n_pis()
+int n_pis()
 {
     Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
     Abc_Ntk_t* pNtk = Abc_FrameReadNtk(pAbc);
 
     if (pNtk)
     {
-        return Int_FromLong(Abc_NtkPiNum(pNtk));
+        return Abc_NtkPiNum(pNtk);
     }
 
-    return Int_FromLong(-1);
+    return -1;
 }
 
-ref<PyObject> n_pos()
+int n_pos()
 {
     Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
     Abc_Ntk_t* pNtk = Abc_FrameReadNtk(pAbc);
 
     if (pNtk)
     {
-        return Int_FromLong(Abc_NtkPoNum(pNtk));
+        return Abc_NtkPoNum(pNtk);
     }
 
-    return Int_FromLong(-1);
+    return -1;
 }
 
-ref<PyObject> n_latches()
+int n_latches()
 {
     Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
     Abc_Ntk_t * pNtk = Abc_FrameReadNtk(pAbc);
 
     if ( pNtk )
     {
-        return Int_FromLong(Abc_NtkLatchNum(pNtk));
+        return Abc_NtkLatchNum(pNtk);
     }
 
-    return Int_FromLong(-1);
+    return -1;
 }
 
-ref<PyObject> n_levels()
+int n_levels()
 {
     Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
     Abc_Ntk_t * pNtk = Abc_FrameReadNtk(pAbc);
 
     if ( pNtk )
     {
-        return Int_FromLong(Abc_NtkLevel(pNtk));
+        return Abc_NtkLevel(pNtk);
     }
 
-    return Int_FromLong(-1);
+    return -1;
 }
 
-ref<PyObject> n_area()
+double n_area()
 {
     Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
     Abc_Ntk_t * pNtk = Abc_FrameReadNtk(pAbc);
 
     if ( pNtk && Abc_NtkHasMapping(pNtk) )
     {
-        return Float_FromDouble(Abc_NtkGetMappedArea(pNtk));
+        return Abc_NtkGetMappedArea(pNtk);
     }
 
-    return Int_FromLong(-1);
+    return -1;
 }
 
-ref<PyObject> has_comb_model()
+bool has_comb_model()
 {
     Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
     Abc_Ntk_t * pNtk = Abc_FrameReadNtk(pAbc);
 
-    return Bool_FromLong(pNtk && pNtk->pModel);
+    return pNtk && pNtk->pModel;
 }
 
-ref<PyObject> has_seq_model()
+bool has_seq_model()
 {
     Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
     Abc_Ntk_t * pNtk = Abc_FrameReadNtk(pAbc);
 
-    return Bool_FromLong( pNtk && pNtk->pSeqModel );
+    return  pNtk && pNtk->pSeqModel ;
 }
 
-ref<PyObject> n_bmc_frames()
+int n_bmc_frames()
 {
     Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
-    return Int_FromLong( Abc_FrameReadBmcFrames(pAbc) );
+    return Abc_FrameReadBmcFrames(pAbc);
 }
 
-ref<PyObject> prob_status()
+int prob_status()
 {
     Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
-    return Int_FromLong( Abc_FrameReadProbStatus(pAbc) );
-}
-ref<PyObject> is_valid_cex()
-{
-    Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
-    Abc_Ntk_t * pNtk = Abc_FrameReadNtk(pAbc);
-
-    return Bool_FromLong( pNtk && Abc_FrameReadCex(pAbc) && Abc_NtkIsValidCex( pNtk, static_cast<Abc_Cex_t_*>(Abc_FrameReadCex(pAbc)) ) );
+    return Abc_FrameReadProbStatus(pAbc);
 }
 
-ref<PyObject> is_true_cex()
+bool is_valid_cex()
 {
     Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
     Abc_Ntk_t * pNtk = Abc_FrameReadNtk(pAbc);
 
-    return Bool_FromLong( pNtk && Abc_FrameReadCex(pAbc) && Abc_NtkIsTrueCex( pNtk, static_cast<Abc_Cex_t_*>(Abc_FrameReadCex(pAbc)) ) );
+    return pNtk && Abc_FrameReadCex(pAbc) && Abc_NtkIsValidCex( pNtk, static_cast<Abc_Cex_t_*>(Abc_FrameReadCex(pAbc)) );
 }
 
-ref<PyObject> n_cex_pis()
+bool is_true_cex()
+{
+    Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
+    Abc_Ntk_t * pNtk = Abc_FrameReadNtk(pAbc);
+
+    return pNtk && Abc_FrameReadCex(pAbc) && Abc_NtkIsTrueCex( pNtk, static_cast<Abc_Cex_t_*>(Abc_FrameReadCex(pAbc)) );
+}
+
+int n_cex_pis()
 {
     Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
 
     if( Abc_FrameReadCex(pAbc) )
     {
-       return Int_FromLong( Abc_FrameReadCexPiNum( pAbc ));
+       return Abc_FrameReadCexPiNum( pAbc );
     }
 
-    return Int_FromLong(-1);
+    return -1;
 }
 
-ref<PyObject> n_cex_regs()
+int n_cex_regs()
 {
     Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
 
     if (Abc_FrameReadCex(pAbc))
     {
-        return Int_FromLong(Abc_FrameReadCexRegNum(pAbc));
+        return Abc_FrameReadCexRegNum(pAbc);
     }
 
-    return Int_FromLong(-1);
+    return -1;
 }
 
-ref<PyObject> cex_po()
+int cex_po()
 {
     Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
 
     if( Abc_FrameReadCex(pAbc) )
     {
-        return Int_FromLong(Abc_FrameReadCexPo( pAbc ));
+        return Abc_FrameReadCexPo( pAbc );
     }
 
-    return Int_FromLong(-1);
+    return -1;
 }
 
-ref<PyObject> cex_frame()
+int cex_frame()
 {
     Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
 
     if ( Abc_FrameReadCex(pAbc) )
     {
-        return Int_FromLong( Abc_FrameReadCexFrame( pAbc ));
+        return Abc_FrameReadCexFrame( pAbc );
     }
 
-    return Int_FromLong(-1);
+    return -1;
 }
 
-ref<PyObject> n_phases()
+int n_phases()
 {
     Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
     Abc_Ntk_t * pNtk = Abc_FrameReadNtk(pAbc);
 
-    return Int_FromLong( pNtk ? Abc_NtkPhaseFrameNum(pNtk) : 1 );
+    return pNtk ? Abc_NtkPhaseFrameNum(pNtk) : 1;
 }
 
-ref<PyObject> is_const_po( PyObject* args, PyObject* kwds )
+int is_const_po(int iPoNum)
 {
-    static char *kwlist[] = { "iPoNum", NULL };
-    int iPoNum;
-    Arg_ParseTupleAndKeywords(args, kwds, "i:is_const_po", kwlist, &iPoNum);
-
     Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
-    return Int_FromLong( Abc_FrameCheckPoConst( pAbc, iPoNum ) );
+    return Abc_FrameCheckPoConst( pAbc, iPoNum );
 }
 
-ref<PyObject> create_abc_array(PyObject* seq)
+void create_abc_array(const std::vector<int> seq)
 {
     Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
     Vec_Int_t *vObjIds = Abc_FrameReadObjIds(pAbc);
 
     Vec_IntClear( vObjIds );
 
-    for_iterator(seq, [&](PyObject* item)
+    for(const auto item : seq)
     {
-        Vec_IntPush( vObjIds, Int_AsLong(item));
-    });
-
-    return None;
+        Vec_IntPush( vObjIds, item);
+    }
 }
 
-ref<PyObject> pyabc_array_read_entry(PyObject* pyi)
+int pyabc_array_read_entry(int i)
 {
-    int i = Int_AsLong(pyi);
-
     Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
     Vec_Int_t *vObjIds = Abc_FrameReadObjIds(pAbc);
 
     if( !vObjIds )
-        return Int_FromLong(-1);
+        return -1;
 
-    return Int_FromLong(Vec_IntEntry( vObjIds, i ));
+    return Vec_IntEntry( vObjIds, i );
 }
 
-ref<PyObject> eq_classes()
+std::vector<int> to_vector(Vec_Int_t* v)
+{
+    std::vector<int> res;
+    
+    int elem, i;
+    Vec_IntForEachEntry( v, elem, i)
+    {
+        res.push_back(elem);
+    }
+
+    return res;    
+}
+
+std::variant<nullptr_t, std::vector<std::vector<int>>> eq_classes()
 {
     Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
     Vec_Ptr_t *vPoEquivs = Abc_FrameReadPoEquivs(pAbc);
 
     if( ! vPoEquivs )
     {
-        return None;
+        return nullptr;
     }
 
-    ref<PyObject> classes = List_New( Vec_PtrSize(vPoEquivs) );
+    std::vector<std::vector<int>> classes;
 
     int i;
     Vec_Int_t* v;
 
     Vec_PtrForEachEntry( Vec_Int_t*, vPoEquivs, v, i )
     {
-        List_SetItem(classes, i, VecInt_To_PyList(v));
+        classes.push_back( to_vector(v) );
     }
 
     return classes;
 }
 
-ref<PyObject> co_supp(PyObject* pyCo)
+std::variant<nullptr_t, std::vector<int>> co_supp(int iCo)
 {
-    int iCo = Int_AsLong(pyCo);
-
     Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
     Abc_Ntk_t * pNtk = Abc_FrameReadNtk(pAbc);
 
     if ( !pNtk )
     {
-        return None;
+        return nullptr;
     }
 
     Vec_Int_t* vSupp = Abc_NtkNodeSupportInt( pNtk, iCo );
 
     if( !vSupp )
     {
-        return None;
+        return nullptr;
     }
 
-    ref<PyObject> co_supp = VecInt_To_PyList( vSupp );
+    auto co_supp = to_vector( vSupp );
 
     Vec_IntFree( vSupp );
 
     return co_supp;
 }
 
-ref<PyObject> _is_func_iso(PyObject* args)
+std::variant<nullptr_t, int> _is_func_iso(int iCo1, int iCo2, int fCommon)
 {
-    int iCo1, iCo2, fCommon;
-    Arg_ParseTuple(args, "iii:_is_func_iso", &iCo1, &iCo2, &fCommon);
-
     Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
     Abc_Ntk_t * pNtk = Abc_FrameReadNtk(pAbc);
 
     if ( !pNtk )
     {
-        return None;
+        return nullptr;
     }
 
-    return Int_FromLong( Abc_NtkFunctionalIso( pNtk, iCo1, iCo2, fCommon ) );
+    return Abc_NtkFunctionalIso( pNtk, iCo1, iCo2, fCommon );
 }
 
-void
-init()
+class cex
 {
-    Abc_Start();
+public:
 
-    static PyMethodDef pyabc_methods[] =
+    cex(Abc_Cex_t* pCex)
     {
-        PYTHONWRAPPER_FUNC_NOARGS(n_ands, 0, ""),
-        PYTHONWRAPPER_FUNC_NOARGS(n_nodes, 0, ""),
-        PYTHONWRAPPER_FUNC_NOARGS(n_pis, 0, ""),
-        PYTHONWRAPPER_FUNC_NOARGS(n_pos, 0, ""),
-        PYTHONWRAPPER_FUNC_NOARGS(n_latches, 0, ""),
-        PYTHONWRAPPER_FUNC_NOARGS(n_levels, 0, ""),
+        if (pCex)
+        {
+            _pCex = Abc_CexDup(pCex, -1);
+        }
+    }
 
-        PYTHONWRAPPER_FUNC_NOARGS(n_area, 0, ""),
-        PYTHONWRAPPER_FUNC_NOARGS(has_comb_model, 0, ""),
-        PYTHONWRAPPER_FUNC_NOARGS(has_seq_model, 0, ""),
-        PYTHONWRAPPER_FUNC_NOARGS(n_bmc_frames, 0, ""),
-        PYTHONWRAPPER_FUNC_NOARGS(prob_status, 0, ""),
-        PYTHONWRAPPER_FUNC_NOARGS(is_valid_cex, 0, ""),
-        PYTHONWRAPPER_FUNC_NOARGS(is_true_cex, 0, ""),
-        PYTHONWRAPPER_FUNC_NOARGS(n_cex_pis, 0, ""),
-        PYTHONWRAPPER_FUNC_NOARGS(n_cex_regs, 0, ""),
-        PYTHONWRAPPER_FUNC_NOARGS(cex_po, 0, ""),
-        PYTHONWRAPPER_FUNC_NOARGS(cex_frame, 0, ""),
-        PYTHONWRAPPER_FUNC_NOARGS(n_phases, 0, ""),
-        PYTHONWRAPPER_FUNC_KEYWORDS(is_const_po, 0, ""),
+    ~cex()
+    {
+        Abc_CexFree(_pCex);
+    }
 
-        PYTHONWRAPPER_FUNC_O(create_abc_array, 0, ""),
-        PYTHONWRAPPER_FUNC_O(pyabc_array_read_entry, 0, ""),
+    int n_regs()
+    {
+        return _pCex->nRegs;
+    }
 
-        PYTHONWRAPPER_FUNC_NOARGS(eq_classes, 0, ""),
-        PYTHONWRAPPER_FUNC_O(co_supp, 0, ""),
-        PYTHONWRAPPER_FUNC_VARARGS(_is_func_iso, 0, ""),
+    int n_pis()
+    {
+        return _pCex->nPis;
+    }
 
-        PYTHONWRAPPER_FUNC_NOARGS(cex_get_vector, 0, ""),
-        PYTHONWRAPPER_FUNC_NOARGS(cex_get, 0, ""),
-        PYTHONWRAPPER_FUNC_NOARGS(status_get_vector, 0, ""),
+    int po()
+    {
+        return _pCex->iPo;
+    }
 
-        PYTHONWRAPPER_FUNC_O(run_command, 0, ""),
-        PYTHONWRAPPER_FUNC_O(set_command_callback, 0, ""),
-        PYTHONWRAPPER_FUNC_O(set_frame_done_callback, 0, ""),
-        PYTHONWRAPPER_FUNC_KEYWORDS(register_command, 0, ""),
+    int frame()
+    {
+        return _pCex->iFrame;
+    }
 
-        PYTHONWRAPPER_FUNC_O(atfork_child_add, 0, "after a fork(), close fd in the child process"),
-        PYTHONWRAPPER_FUNC_O(atfork_child_remove, 0, "remove fd from the list of file descriptors to be closed after fork()"),
+    void put()
+    {
+        if ( _pCex )
+        {
+            Abc_FrameSetCex( Abc_CexDup(_pCex, -1) );
+        }
+        else
+        {
+            Abc_FrameSetCex( nullptr );
+        }        
+    }
 
-        PYTHONWRAPPER_FUNC_O(add_sigchld_fd, 0, "add a file descriptor to receive a byte every time SIGCHLD is recieved "),
-        PYTHONWRAPPER_FUNC_O(remove_sigchld_fd, 0, ""),
+private:
 
-        { 0 }
-    };
+    Abc_Cex_t* _pCex;
+};
 
-    borrowed_ref<PyObject> mod = InitModule3(
-        "_pyabc",
-        pyabc_methods,
-        "A Python interface to ABC"
-    );
+using cex_return_type = std::variant<nullptr_t, bool, cex>;
 
-    cex::initialize(mod);
+std::variant<nullptr_t, std::vector<cex_return_type>> cex_get_vector()
+{
+    Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
+    Vec_Ptr_t* vCexVec = Abc_FrameReadCexVec(pAbc);
 
-    sys_init();
+    if( ! vCexVec )
+    {
+        return nullptr;
+    }
+
+    std::vector<cex_return_type> res;
+
+    for(int i=0; i<Vec_PtrSize(vCexVec) ; i++)
+    {
+        Abc_Cex_t* pCex = static_cast<Abc_Cex_t*>(Vec_PtrEntry(vCexVec, i));
+
+        if( ! pCex )
+        {
+            res.push_back(nullptr);
+        }
+        else if ( pCex == reinterpret_cast<Abc_Cex_t*>(1) )
+        {
+            res.push_back(true);
+        }
+        else
+        {
+            res.push_back(cex{pCex});
+        }
+    }
+
+    return res;
+}
+
+cex_return_type cex_get()
+{
+    Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
+    Abc_Cex_t* pCex = static_cast<Abc_Cex_t_*>(Abc_FrameReadCex(pAbc));
+
+    if( ! pCex )
+    {
+        return nullptr;
+    }
+
+    if ( pCex == reinterpret_cast<Abc_Cex_t*>(1) )
+    {
+        return true;
+    }
+
+    return cex{pCex};
+}
+
+std::variant<nullptr_t, std::vector<int>> status_get_vector()
+{
+    Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
+    Vec_Int_t* vStatusVec = Abc_FrameReadStatusVec(pAbc);
+
+    if( ! vStatusVec )
+    {
+        return nullptr;
+    }
+
+    std::vector<int> res;
+
+    for(int i=0; i<Vec_IntSize(vStatusVec) ; i++)
+    {
+        res.push_back( Vec_IntEntry( vStatusVec, i ) );
+    }
+
+    return res;
+}
+
+py::function python_frame_done_callback;
+
+void frame_done_callback(int frame, int po, int status)
+{
+    try
+    {
+        py::gil_scoped_acquire acquire;
+        python_frame_done_callback(frame, po, status);
+    }
+    catch(...)
+    {
+    }
+}
+
+py::function set_frame_done_callback(py::function callback)
+{
+    py::function prev = python_frame_done_callback;
+    python_frame_done_callback = py::reinterpret_borrow<py::function>(callback);
+    return prev;
+}
+
+py::function python_command_callback;
+
+static int abc_command_callback(Abc_Frame_t* pAbc, int argc, char** argv)
+{
+    try
+    {
+        std::vector<const char*> args;
+
+        for(int i=0; i<argc; i++)
+        {
+            args.push_back( argv[i]);
+        }
+        
+        py::gil_scoped_acquire acquire;
+        py::int_ res = python_command_callback(args);
+        return res;
+    }
+    catch(...)
+    {
+        return -1;
+    }
+}
+
+void set_command_callback(py::function callback)
+{
+    python_command_callback = py::reinterpret_borrow<py::function>(callback);;
+}
+
+void register_command(char* sGroup, char* sName, int fChanges)
+{
+    Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
+    Cmd_CommandAdd( pAbc, sGroup, sName, static_cast<Cmd_CommandFuncType>(abc_command_callback), fChanges);
+}
+
+class abc_func_on_frame_done_scope
+{
+public:
+
+    abc_func_on_frame_done_scope(Abc_Frame_Callback_BmcFrameDone_Func func)
+    {
+        pAbc->pFuncOnFrameDone = func;
+    }
+
+    ~abc_func_on_frame_done_scope()
+    {
+        pAbc->pFuncOnFrameDone = prev;
+    }
+
+private:
+
+    Abc_Frame_t* pAbc{ Abc_FrameGetGlobalFrame() };
+    Abc_Frame_Callback_BmcFrameDone_Func prev{ pAbc->pFuncOnFrameDone };
+};
+
+int run_command(const char* cmd)
+{
+    py::gil_scoped_release release;
+
+    Abc_Frame_t* pAbc = Abc_FrameGetGlobalFrame();
+
+    if( python_frame_done_callback && !python_frame_done_callback.is_none() )
+    {
+        abc_func_on_frame_done_scope scope{frame_done_callback};
+        return Cmd_CommandExecute(pAbc, cmd);
+    }
+    else
+    {
+        return Cmd_CommandExecute(pAbc, cmd);
+    }
 }
 
 } // namespace pyabc
+
+#ifdef PYABC_EMBEDDED_MODULE
+#include <pybind11/embed.h>
+PYBIND11_EMBEDDED_MODULE(_pyabc, m) {
+#else
+PYBIND11_MODULE(_pyabc, m) {
+#endif
+    m.doc() = "pyABC - a simple Python interface to ABC";
+
+    m.def("n_ands", &pyabc::n_ands, "n_ands");
+    m.def("n_nodes", &pyabc::n_nodes, "n_nodes");
+    m.def("n_pis", &pyabc::n_pis, "n_pis");
+    m.def("n_pos", &pyabc::n_pos, "n_pos");
+    m.def("n_latches", &pyabc::n_latches, "n_latches");
+    m.def("n_levels", &pyabc::n_levels, "n_levels");
+    m.def("n_area", &pyabc::n_area, "n_area");
+    m.def("has_comb_model", &pyabc::has_comb_model, "has_comb_model");
+    m.def("has_seq_model", &pyabc::has_seq_model, "has_seq_model");
+    m.def("n_bmc_frames", &pyabc::n_bmc_frames, "n_bmc_frames");
+    m.def("prob_status", &pyabc::prob_status, "prob_status");
+    m.def("is_valid_cex", &pyabc::is_valid_cex, "is_valid_cex");
+    m.def("is_true_cex", &pyabc::is_true_cex, "is_true_cex");
+    m.def("n_cex_pis", &pyabc::n_cex_pis, "n_cex_pis");
+    m.def("n_cex_regs", &pyabc::n_cex_regs, "n_cex_regs");
+    m.def("cex_po", &pyabc::cex_po, "cex_po");
+    m.def("cex_frame", &pyabc::cex_frame, "cex_frame");
+    m.def("n_phases", &pyabc::n_phases, "n_phases");
+    m.def("is_const_po", &pyabc::is_const_po, "is_const_po");
+    m.def("eq_classes", &pyabc::eq_classes, "eq_classes");
+    m.def("co_supp", &pyabc::co_supp, "co_supp");
+    m.def("_is_func_iso", &pyabc::_is_func_iso, "_is_func_iso");
+    
+    py::class_<pyabc::cex>(m, "CEX")
+        .def("n_regs", &pyabc::cex::n_regs)
+        .def("n_pis", &pyabc::cex::n_pis)
+        .def("po", &pyabc::cex::po)
+        .def("frame", &pyabc::cex::frame)
+        .def("put", &pyabc::cex::put)
+        ;
+
+    m.def("cex_get_vector", &pyabc::cex_get_vector, "cex_get_vector");
+    m.def("cex_get", &pyabc::cex_get, "cex_get");
+    m.def("status_get_vector", &pyabc::status_get_vector, "status_get_vector");
+
+    m.def("atfork_child_add", &pyabc::atfork_child_add, "after a fork(), close fd in the child process");
+    m.def("atfork_child_remove", &pyabc::atfork_child_remove, "remove fd from the list of file descriptors to be closed after fork()");
+    m.def("add_sigchld_fd", &pyabc::add_sigchld_fd, "add a file descriptor to receive a byte every time SIGCHLD is recieved ");
+    m.def("remove_sigchld_fd", &pyabc::remove_sigchld_fd, "");
+
+    m.def("set_frame_done_callback", &pyabc::set_frame_done_callback, "set_frame_done_callback");
+    m.def("set_command_callback", &pyabc::set_command_callback, "set_command_callback");
+    m.def("register_command", &pyabc::register_command, "register_command");
+    m.def("run_command", &pyabc::run_command, "run_command");
+
+    pyabc::sys_init();
+}
